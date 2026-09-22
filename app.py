@@ -12,6 +12,10 @@ import streamlit as st
 # stays clean and easy to read.
 from data.sample_disputes import DISPUTES
 
+# Import the placeholder agent functions.
+# In a later iteration these will be replaced by real LLM API calls.
+from agents.dispute_agents import driver_advocate, judge_ruling, rider_advocate
+
 
 # ------------------------------------------------------------------------------
 # 1. PAGE CONFIGURATION
@@ -164,9 +168,36 @@ btn_col1, btn_col2, btn_col3 = st.columns([1, 2, 1])
 
 with btn_col2:
     # st.button returns True on the rerun that happens *after* the user clicks.
-    # Right now there is no real logic behind it — we just show a success toast.
     if st.button("Review this complaint", use_container_width=True):
-        st.success("Review mode activated (logic coming soon)!")
+        # ------------------------------------------------------------------
+        # These three calls are PLACEHOLDERS.
+        # In the future they will be replaced by real LLM API calls that
+        # generate arguments and a structured ruling based on the evidence.
+        # ------------------------------------------------------------------
+        rider_case = rider_advocate(selected_dispute)
+        driver_case = driver_advocate(selected_dispute)
+        ruling = judge_ruling(rider_case, driver_case, selected_dispute)
+
+        st.success("Review complete — see the results below.")
+
+        st.divider()
+
+        # ------------------------ Rider's Argument ------------------------
+        st.header("Rider's Argument")
+        with st.container(border=True):
+            st.write(rider_case)
+
+        # ------------------------ Driver's Argument -----------------------
+        st.header("Driver's Argument")
+        with st.container(border=True):
+            st.write(driver_case)
+
+        # -------------------------- Judge's Ruling ------------------------
+        st.header("Judge's Ruling")
+        with st.container(border=True):
+            st.markdown(f"**Decision:** {ruling['decision']}")
+            st.markdown(f"**Confidence:** {ruling['confidence']}")
+            st.markdown(f"**Explanation:** {ruling['explanation']}")
 
 
 # ------------------------------------------------------------------------------
