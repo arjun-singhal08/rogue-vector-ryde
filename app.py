@@ -6,7 +6,15 @@
 #     streamlit run app.py
 # =============================================================================
 
+import os
+
 import streamlit as st
+
+# Load environment variables from .env at startup.
+# This makes values like GEMINI_API_KEY available via os.environ.
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Import our fake data.  We keep all data in a separate file so the UI code
 # stays clean and easy to read.
