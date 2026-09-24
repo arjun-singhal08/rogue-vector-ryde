@@ -34,8 +34,8 @@ def call_gemini(prompt_text: str) -> str:
         # Configure the Gemini client with our API key.
         genai.configure(api_key=api_key)
 
-        # Create a model instance.  "gemini-2.0-flash" is a fast, capable model.
-        model = genai.GenerativeModel("gemini-2.0-flash")
+        # Create a model instance.  "gemini-3.6-flash" is a fast, capable model.
+        model = genai.GenerativeModel("gemini-3.6-flash")
 
         # Send the prompt and get the response.
         response = model.generate_content(prompt_text)
