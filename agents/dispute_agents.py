@@ -7,15 +7,55 @@
 # built and tested without needing an API key or internet connection.
 # =============================================================================
 
+import json
+import os
+
+import google.generativeai as genai
+
+
+def call_gemini(prompt_text: str) -> str:
+    """
+    Send a prompt to the Gemini API and return the generated text.
+
+    Parameters
+    ----------
+    prompt_text : str
+        The full prompt to send to the model.
+
+    Returns
+    -------
+    str
+        The model's response text, or an "[ERROR]" string if the call fails.
+    """
+    try:
+        # Read the API key from the environment variable loaded by dotenv in app.py.
+        api_key = os.environ["GEMINI_API_KEY"]
+
+        # Configure the Gemini client with our API key.
+        genai.configure(api_key=api_key)
+
+        # Create a model instance.  "gemini-2.0-flash" is a fast, capable model.
+        model = genai.GenerativeModel("gemini-2.0-flash")
+
+        # Send the prompt and get the response.
+        response = model.generate_content(prompt_text)
+
+        # Return the text content of the first candidate.
+        return response.text
+    except Exception as exc:
+        # If anything goes wrong (network issue, bad key, etc.) return a safe
+        # error string instead of crashing the whole Streamlit app.
+        return f"[ERROR] Gemini API call failed: {exc}"
+
 
 def rider_advocate(dispute_data: dict) -> str:
     """
-    Build the rider's side of the case.
+    Build the rider's side of the case using a real LLM call.
 
-    In the future this function will:
-      1. Format the evidence into a prompt.
-      2. Send the prompt to an LLM API (e.g. OpenAI, Anthropic, local model).
-      3. Return the generated argument text.
+    This function:
+      1. Formats all available evidence into a clear, structured prompt.
+      2. Asks the model to act as the rider's advocate.
+      3. Calls call_gemini() and returns the generated argument.
 
     Parameters
     ----------
@@ -25,9 +65,45 @@ def rider_advocate(dispute_data: dict) -> str:
     Returns
     -------
     str
-        Placeholder text representing the rider's argument.
+        The AI-generated argument for the rider, or an error message.
     """
-    return "[PLACEHOLDER] Rider Advocate case would appear here."
+    # -------------------------------------------------------------------------
+    # Build the evidence block dynamically.
+    # We convert the evidence dict to a pretty-printed JSON string so the
+    # model can read every field regardless of dispute type (Route Deviation,
+    # No-Show Charge, etc.).
+    # -------------------------------------------------------------------------
+    evidence_json = json.dumps(dispute_data["evidence"], indent=2)
+
+    # -------------------------------------------------------------------------
+    # Compose the full prompt.
+    # We explicitly tell the model:
+    #   - Its role (advocate for the rider).
+    #   - What data it has access to.
+    #   - The constraint: use ONLY the evidence provided; do not invent facts.
+    # This keeps the output grounded in the sample data.
+    # -------------------------------------------------------------------------
+    prompt = f"""You are an advocate representing the rider in a ride-hailing dispute.
+
+Your job is to build the strongest fair case for the rider using ONLY the evidence provided below. Do NOT invent facts, assume details not in the data, or hallucinate information.
+
+--- RIDER COMPLAINT ---
+{dispute_data['rider_complaint']}
+
+--- EVIDENCE ---
+{evidence_json}
+
+--- RIDER HISTORY ---
+Prior disputes: {dispute_data['rider_profile']['prior_disputes']}
+
+Instructions:
+1. State the rider's core grievance clearly.
+2. Highlight specific evidence that supports the rider's position.
+3. Keep the tone professional and factual.
+4. Do not mention that you are an AI.
+"""
+
+    return call_gemini(prompt)
 
 
 def driver_advocate(dispute_data: dict) -> str:
