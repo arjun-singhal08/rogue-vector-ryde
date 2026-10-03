@@ -101,7 +101,7 @@ with left_col:
     with st.expander("Trip & Route Evidence", expanded=True):
         ev = selected_dispute["evidence"]
 
-        # --- Route Deviation evidence ---
+        # --- Route Deviation evidence (Case #1) ---
         if "actual_route_summary" in ev:
             # Display the route as a readable arrow-separated string.
             st.markdown("**Actual Route Taken:**")
@@ -128,23 +128,47 @@ with left_col:
             st.divider()
             st.write(f"**Total charged:** ${fare['total_charged']:.2f}")
 
-        # --- No-Show Charge evidence ---
-        elif "driver_gps_when_arrived" in ev:
-            st.markdown("**Driver GPS when marked 'Arrived':**")
-            gps = ev["driver_gps_when_arrived"]
-            st.write(f"- Location: {gps['location_name']}")
-            st.write(f"- Coordinates: ({gps['lat']}, {gps['lng']})")
-            st.write(f"- Timestamp: {ev['timestamp_marked_arrived']}")
+        # --- Rich No-Show Charge evidence (Case #2) ---
+        elif "gps_telemetry" in ev:
+            trip = ev["trip_data"]
 
-            st.markdown("**Rider Chat Messages:**")
-            # Loop through each message and render it as a bullet point.
-            for msg in ev["rider_chat_messages"]:
-                st.write(
-                    f"- *{msg['timestamp']}* **{msg['sender'].capitalize()}:** {msg['text']}"
-                )
+            st.markdown("**Trip Details**")
+            st.write(f"- Pickup: {trip['pickup_location']['name']}")
+            st.write(f"- Dropoff: {trip['dropoff_location']['name']}")
+            st.write(f"- Scheduled pickup: {trip['scheduled_time']}")
+            st.write(f"- Driver arrived: {trip['driver_arrival_time']}")
+            st.write(f"- Cancelled: {trip['cancellation_time']}")
+            st.write(f"- Cancellation fee: **${trip['cancellation_fee']:.2f}**")
+            st.write(f"- Cancellation reason (app): {trip['cancellation_reason']}")
 
-            st.markdown("**Cancellation Fee:**")
-            st.write(f"${ev['cancellation_fee_charged']:.2f}")
+            st.divider()
+
+            st.markdown("**GPS Telemetry**")
+            # st.dataframe renders a scrollable table from a list of dicts.
+            st.dataframe(ev["gps_telemetry"], use_container_width=True)
+
+            st.divider()
+
+            st.markdown("**Chat Logs**")
+            for msg in ev["chat_logs"]:
+                sender = msg["sender"].capitalize()
+                msg_type = f" ({msg['type']})" if msg["type"] != "message" else ""
+                st.write(f"- *{msg['timestamp']}* **{sender}**{msg_type}: {msg['content']}")
+
+            st.divider()
+
+            st.markdown("**App Events**")
+            for evt in ev["app_events"]:
+                st.write(f"- *{evt['timestamp']}* **{evt['event_type']}**: {evt['details']}")
+
+            st.divider()
+
+            st.markdown("**Cancellation Policy**")
+            policy = ev["cancellation_policy"]
+            st.write(f"- Free wait time: {policy['free_wait_time_min']} min")
+            st.write(f"- Fee after free wait: ${policy['cancellation_fee_after_wait']:.2f}")
+            st.write(f"- No-show threshold: {policy['no_show_threshold_min']} min")
+            st.write(f"- Fee goes to: {policy['fee_goes_to']}")
 
 # -------------------------- RIGHT COLUMN: Profiles ---------------------------
 with right_col:
@@ -155,8 +179,20 @@ with right_col:
     with st.container(border=True):
         st.markdown("**Driver Profile**")
         driver = selected_dispute["driver_profile"]
+        if "name" in driver:
+            st.write(f"Name: {driver['name']}")
         st.write(f"Rating: {driver['rating']} ⭐")
-        st.write(f"Completed trips: {driver['total_completed_trips']:,}")
+        trips = driver.get("total_completed_trips") or driver.get("total_trips", 0)
+        st.write(f"Completed trips: {trips:,}")
+        if "account_age_days" in driver:
+            st.write(f"Account age: {driver['account_age_days']} days")
+        if "vehicle" in driver:
+            st.write(f"Vehicle: {driver['vehicle']}")
+        if "dispute_history" in driver:
+            dh = driver["dispute_history"]
+            st.write(f"Disputes: {dh.get('total_disputes', 0)} total")
+        if "fraud_flags" in driver:
+            st.write(f"Fraud flags: {driver['fraud_flags']}")
 
     # Add a little vertical gap between cards.
     st.markdown(" ")
@@ -164,7 +200,28 @@ with right_col:
     with st.container(border=True):
         st.markdown("**Rider Profile**")
         rider = selected_dispute["rider_profile"]
-        st.write(f"Prior disputes: {rider['prior_disputes']}")
+        if "name" in rider:
+            st.write(f"Name: {rider['name']}")
+        if "rating" in rider:
+            st.write(f"Rating: {rider['rating']} ⭐")
+        if "total_trips" in rider:
+            st.write(f"Total trips: {rider['total_trips']:,}")
+        if "account_age_days" in rider:
+            st.write(f"Account age: {rider['account_age_days']} days")
+        if "prior_disputes" in rider:
+            st.write(f"Prior disputes: {rider['prior_disputes']}")
+        if "dispute_history" in rider:
+            dh = rider["dispute_history"]
+            st.write(
+                f"Dispute history: {dh.get('total_disputes', 0)} total "
+                f"({dh.get('upheld', 0)} upheld, {dh.get('rejected', 0)} rejected)"
+            )
+        if "fraud_flags" in rider:
+            st.write(f"Fraud flags: {rider['fraud_flags']}")
+        if "fraud_flag_details" in rider:
+            st.write(f"Flag details: {rider['fraud_flag_details']}")
+        if "payment_method" in rider:
+            st.write(f"Payment: {rider['payment_method']}")
 
 
 # ------------------------------------------------------------------------------
