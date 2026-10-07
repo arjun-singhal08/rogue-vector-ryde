@@ -1,88 +1,72 @@
 # =============================================================================
-# Dispute Agents — Placeholder Logic
+# Dispute Agents — LLM-backed reasoning
 # =============================================================================
-# This module contains the "brains" that will eventually call a real LLM
-# (Large Language Model) API to generate arguments and rulings.
-# For now every function returns hard-coded placeholder text so the UI can be
-# built and tested without needing an API key or internet connection.
+# This module calls the Groq API to generate advocate arguments and judge
+# rulings.  All agent outputs are validated before they reach the UI.
 # =============================================================================
 
 import json
+import math
 import os
+import time
 
 from groq import Groq
 
 
-def call_groq(prompt_text: str) -> str:
+# -----------------------------------------------------------------------------
+# Allowed judge decisions (documented contract)
+# -----------------------------------------------------------------------------
+ALLOWED_DECISIONS = {
+    "UPHELD",
+    "REJECTED",
+    "PARTIAL",
+    "PARTIAL REFUND",
+    "ESCALATE FOR HUMAN REVIEW",
+    "ESCALATE",
+}
+
+CONFIDENCE_THRESHOLD = 60.0
+
+
+# -----------------------------------------------------------------------------
+# Low-level Groq client wrapper
+# -----------------------------------------------------------------------------
+def call_groq(prompt_text: str, max_retries: int = 2) -> str:
     """
-    Send a prompt to the Groq API and return the generated text.
+    Send a prompt to the Groq API with a finite timeout and bounded retries.
 
-    Parameters
-    ----------
-    prompt_text : str
-        The full prompt to send to the model.
-
-    Returns
-    -------
-    str
-        The model's response text, or an "[ERROR]" string if the call fails.
+    Never exposes the raw API key or provider exceptions to callers.
     """
-    try:
-        # Read the API key from the environment variable loaded by dotenv in app.py.
-        api_key = os.environ["GROQ_API_KEY"]
+    api_key = os.environ.get("GROQ_API_KEY")
+    if not api_key:
+        return "[ERROR] GROQ_API_KEY is not configured."
 
-        # Create a Groq client instance.
-        client = Groq(api_key=api_key)
+    model = os.environ.get("GROQ_MODEL", "openai/gpt-oss-20b")
+    client = Groq(api_key=api_key)
 
-        # Send the prompt to the Groq-hosted model and get the response.
-        chat_completion = client.chat.completions.create(
-            messages=[{"role": "user", "content": prompt_text}],
-            model="openai/gpt-oss-20b",
-        )
+    for attempt in range(max_retries + 1):
+        try:
+            chat_completion = client.chat.completions.create(
+                messages=[{"role": "user", "content": prompt_text}],
+                model=model,
+                timeout=30.0,
+            )
+            return chat_completion.choices[0].message.content
+        except Exception as exc:
+            if attempt == max_retries:
+                # Return a safe, non-leaky error string.
+                return f"[ERROR] Groq API call failed after {max_retries + 1} attempts."
+            time.sleep(1.0 * (attempt + 1))
 
-        # Return the text content of the first choice.
-        return chat_completion.choices[0].message.content
-    except Exception as exc:
-        # If anything goes wrong (network issue, bad key, etc.) return a safe
-        # error string instead of crashing the whole Streamlit app.
-        return f"[ERROR] Groq API call failed: {exc}"
+    return "[ERROR] Groq API call failed unexpectedly."
 
 
+# -----------------------------------------------------------------------------
+# Agent: Rider Advocate
+# -----------------------------------------------------------------------------
 def rider_advocate(dispute_data: dict) -> str:
-    """
-    Build the rider's side of the case using a real LLM call.
-
-    This function:
-      1. Formats all available evidence into a clear, structured prompt.
-      2. Asks the model to act as the rider's advocate.
-      3. Calls call_groq() and returns the generated argument.
-
-    Parameters
-    ----------
-    dispute_data : dict
-        The full dispute dictionary from sample_disputes.py.
-
-    Returns
-    -------
-    str
-        The AI-generated argument for the rider, or an error message.
-    """
-    # -------------------------------------------------------------------------
-    # Build the evidence block dynamically.
-    # We convert the evidence dict to a pretty-printed JSON string so the
-    # model can read every field regardless of dispute type (Route Deviation,
-    # No-Show Charge, etc.).
-    # -------------------------------------------------------------------------
     evidence_json = json.dumps(dispute_data["evidence"], indent=2)
 
-    # -------------------------------------------------------------------------
-    # Compose the full prompt.
-    # We explicitly tell the model:
-    #   - Its role (advocate for the rider).
-    #   - What data it has access to.
-    #   - The constraint: use ONLY the evidence provided; do not invent facts.
-    # This keeps the output grounded in the sample data.
-    # -------------------------------------------------------------------------
     prompt = f"""You are an advocate representing the rider in a ride-hailing dispute.
 
 Your job is to build the strongest fair case for the rider using ONLY the evidence provided below. Do NOT invent facts, assume details not in the data, or hallucinate information.
@@ -108,40 +92,12 @@ Instructions:
     return call_groq(prompt)
 
 
+# -----------------------------------------------------------------------------
+# Agent: Driver Advocate
+# -----------------------------------------------------------------------------
 def driver_advocate(dispute_data: dict) -> str:
-    """
-    Build the driver's side of the case using a real LLM call.
-
-    This function:
-      1. Formats all available evidence into a clear, structured prompt.
-      2. Asks the model to act as the driver's advocate.
-      3. Calls call_groq() and returns the generated argument.
-
-    Parameters
-    ----------
-    dispute_data : dict
-        The full dispute dictionary from sample_disputes.py.
-
-    Returns
-    -------
-    str
-        The AI-generated argument for the driver, or an error message.
-    """
-    # -------------------------------------------------------------------------
-    # Build the evidence block dynamically.
-    # We convert the evidence dict to a pretty-printed JSON string so the
-    # model can read every field regardless of dispute type.
-    # -------------------------------------------------------------------------
     evidence_json = json.dumps(dispute_data["evidence"], indent=2)
 
-    # -------------------------------------------------------------------------
-    # Compose the full prompt.
-    # We explicitly tell the model:
-    #   - Its role (advocate for the driver).
-    #   - What data it has access to.
-    #   - The constraint: use ONLY the evidence provided; do not invent facts.
-    # This keeps the output grounded in the sample data.
-    # -------------------------------------------------------------------------
     prompt = f"""You are an advocate representing the driver in a ride-hailing dispute.
 
 Your job is to build the strongest fair case for the driver using ONLY the evidence provided below. Do NOT invent facts, assume details not in the data, or hallucinate information.
@@ -167,48 +123,90 @@ Instructions:
     return call_groq(prompt)
 
 
+# -----------------------------------------------------------------------------
+# Judge output validation
+# -----------------------------------------------------------------------------
+def _error_ruling(msg: str) -> dict:
+    return {
+        "decision": "[ERROR]",
+        "confidence": "N/A",
+        "explanation": f"[ERROR] {msg}",
+        "escalate": True,
+    }
+
+
+def validate_judge_output(raw: object) -> dict:
+    """
+    Validate and sanitise a judge model's output.
+
+    Rules:
+      - Must be a JSON object (dict).
+      - decision must be a non-empty string in ALLOWED_DECISIONS.
+      - explanation must be a non-empty string.
+      - confidence must parse to a finite float in [0, 100].
+      - NaN, infinity, and unknown decisions are rejected.
+      - confidence < CONFIDENCE_THRESHOLD triggers escalation.
+
+    Returns a safe error dict on any validation failure.
+    """
+    if not isinstance(raw, dict):
+        return _error_ruling(f"Judge output must be a JSON object, got {type(raw).__name__}.")
+
+    decision = raw.get("decision")
+    confidence = raw.get("confidence")
+    explanation = raw.get("explanation")
+
+    # --- decision ---
+    if not isinstance(decision, str) or not decision.strip():
+        return _error_ruling("Judge output missing or empty decision field.")
+    if decision not in ALLOWED_DECISIONS:
+        return _error_ruling(
+            f"Invalid decision '{decision}'. Allowed: {', '.join(sorted(ALLOWED_DECISIONS))}"
+        )
+
+    # --- explanation ---
+    if not isinstance(explanation, str) or not explanation.strip():
+        return _error_ruling("Judge output missing or empty explanation field.")
+
+    # --- confidence ---
+    if confidence is None or (isinstance(confidence, str) and not confidence.strip()):
+        return _error_ruling("Judge output missing or empty confidence field.")
+
+    confidence_str = str(confidence).replace("%", "").strip()
+    try:
+        confidence_num = float(confidence_str)
+    except ValueError:
+        return _error_ruling(f"Confidence must be a numeric percentage, got: '{confidence}'")
+
+    if not math.isfinite(confidence_num):
+        return _error_ruling(f"Confidence must be a finite number, got: {confidence_num}")
+
+    if confidence_num < 0 or confidence_num > 100:
+        return _error_ruling(f"Confidence must be between 0 and 100, got: {confidence_num}")
+
+    # --- escalation ---
+    escalate = confidence_num < CONFIDENCE_THRESHOLD
+    if escalate:
+        explanation += (
+            "\n\n[ESCALATION NOTICE] Confidence is below the platform's threshold "
+            "for automated resolution. This case is being flagged for human review "
+            "rather than finalized automatically."
+        )
+
+    return {
+        "decision": decision,
+        "confidence": f"{confidence_num:.0f}%",
+        "explanation": explanation,
+        "escalate": escalate,
+    }
+
+
+# -----------------------------------------------------------------------------
+# Agent: Judge
+# -----------------------------------------------------------------------------
 def judge_ruling(rider_case: str, driver_case: str, dispute_data: dict) -> dict:
-    """
-    Produce a final ruling after hearing both sides.
-
-    This function:
-      1. Builds a judge prompt with both arguments and the raw evidence.
-      2. Asks the model to act as an impartial judge.
-      3. Calls call_groq() and expects a strict JSON response.
-      4. Parses the JSON into a Python dict with keys:
-         "decision", "confidence", "explanation".
-      5. Returns a safe error dict if the API call or JSON parsing fails.
-
-    Parameters
-    ----------
-    rider_case : str
-        The argument generated by rider_advocate().
-    driver_case : str
-        The argument generated by driver_advocate().
-    dispute_data : dict
-        The full dispute dictionary (gives the judge access to raw evidence).
-
-    Returns
-    -------
-    dict
-        Ruling dict with keys:
-        - "decision"     : str   (e.g. "UPHELD", "REJECTED", "PARTIAL")
-        - "confidence"   : str   (percentage, e.g. "85%")
-        - "explanation"  : str   (plain-English reasoning)
-        - "escalate"     : bool  (True when confidence is below 60%)
-    """
-    # -------------------------------------------------------------------------
-    # Build the evidence block so the judge can verify claims against raw data.
-    # -------------------------------------------------------------------------
     evidence_json = json.dumps(dispute_data["evidence"], indent=2)
 
-    # -------------------------------------------------------------------------
-    # Compose the full prompt.
-    # We explicitly instruct the model to:
-    #   - Act as an impartial judge.
-    #   - Weigh arguments against the actual evidence, not rhetoric.
-    #   - Respond in strict JSON so we can parse it reliably in code.
-    # -------------------------------------------------------------------------
     prompt = f"""You are an impartial judge resolving a ride-hailing dispute.
 
 Your job is to weigh BOTH arguments against the RAW EVIDENCE below — not against which side sounds more convincing. Use ONLY the evidence provided; do NOT invent facts.
@@ -242,80 +240,23 @@ IMPORTANT — Respond in strict JSON format with exactly these keys and no extra
 }}
 """
 
-    # Call the LLM.  If the API fails, call_groq returns a string starting with
-    # "[ERROR]" and we convert it into the error dict our app expects.
     response_text = call_groq(prompt)
     if response_text.startswith("[ERROR]"):
-        return {
-            "decision": "[ERROR]",
-            "confidence": "N/A",
-            "explanation": response_text,
-            "escalate": True,
-        }
+        return _error_ruling(response_text)
 
-    # -------------------------------------------------------------------------
-    # Parse the JSON response.
-    # LLMs sometimes wrap JSON in markdown code fences (```json ... ```).
-    # We strip those fences before parsing so json.loads doesn't choke.
-    # -------------------------------------------------------------------------
+    # Strip markdown fences if present.
     cleaned = response_text.strip()
     if cleaned.startswith("```"):
-        # Remove the opening ```json or ``` line.
         cleaned = cleaned.split("\n", 1)[1] if "\n" in cleaned else cleaned
     if cleaned.endswith("```"):
-        # Remove the closing ``` line.
         cleaned = cleaned.rsplit("\n", 1)[0] if "\n" in cleaned else cleaned
     cleaned = cleaned.strip()
 
     try:
         ruling = json.loads(cleaned)
     except Exception as exc:
-        # If the model didn't return valid JSON, return a safe error dict.
-        return {
-            "decision": "[ERROR]",
-            "confidence": "N/A",
-            "explanation": f"[ERROR] Could not parse judge response as JSON: {exc}\n\nRaw response:\n{response_text}",
-            "escalate": True,
-        }
-
-    # Ensure the required keys exist.  If the model omitted one, fall back.
-    required_keys = {"decision", "confidence", "explanation"}
-    missing = required_keys - set(ruling.keys())
-    if missing:
-        return {
-            "decision": "[ERROR]",
-            "confidence": "N/A",
-            "explanation": (
-                f"[ERROR] Judge response missing required keys: {missing}.\n\n"
-                f"Parsed JSON:\n{json.dumps(ruling, indent=2)}"
-            ),
-            "escalate": True,
-        }
-
-    # -------------------------------------------------------------------------
-    # Escalation check — low-confidence rulings should NOT be auto-finalized.
-    #
-    # The model returns confidence as a string like "85%". We strip any "%"
-    # sign and convert to a float so we can compare against the 60% threshold.
-    # If confidence is below 60%, we flag the case for human review rather
-    # than letting an uncertain AI decision stand as final.
-    # -------------------------------------------------------------------------
-    confidence_str = str(ruling.get("confidence", "0%")).replace("%", "").strip()
-    try:
-        confidence_num = float(confidence_str)
-    except ValueError:
-        # If the model returned something unparseable (e.g. "medium"),
-        # treat it as low-confidence and escalate for safety.
-        confidence_num = 0.0
-
-    if confidence_num < 60:
-        ruling["escalate"] = True
-        ruling["explanation"] += (
-            "\n\n[ESCALATION NOTICE] Confidence is below the platform's threshold "
-            "for automated resolution. This case is being flagged for human review "
-            "rather than finalized automatically."
+        return _error_ruling(
+            f"Could not parse judge response as JSON: {exc}\n\nRaw response:\n{response_text}"
         )
-    else:
-        ruling["escalate"] = False
 
-    return ruling
+    return validate_judge_output(ruling)

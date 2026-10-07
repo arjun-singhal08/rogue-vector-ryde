@@ -10,11 +10,18 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@radix-ui/react-collapsible": "^1.1.21",
+    "@radix-ui/react-dialog": "^1.2.0",
+    "@radix-ui/react-tabs": "^1.1.22",
+    "animejs": "^4.5.0",
+    "clsx": "^2.1.1",
     "lucide-react": "^1.52.0",
     "react": "^19.2.8",
-    "react-dom": "^19.2.8"
+    "react-dom": "^19.2.8",
+    "tailwind-merge": "^3.7.0"
   },
   "devDependencies": {
+    "@types/animejs": "^3.1.13",
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",

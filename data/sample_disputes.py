@@ -103,15 +103,14 @@ DISPUTES = [
                 {"timestamp": "2026-09-13T08:51:00+08:00", "event_type": "cancellation_fee_applied", "details": "No-show threshold (8 min) reached. $5.00 cancellation fee charged to rider payment method (e-wallet)."},
                 {"timestamp": "2026-09-13T08:51:05+08:00", "event_type": "driver_released", "details": "Driver D-2398 released from trip. Trip status: cancelled (rider_no_show)."},
             ],
-            # Policy parameters aligned with Ryde's publicly documented
-            # Cancellation and Waiting Time Policy (help.rydesharing.com) as of
-            # Oct 2026; specific dispute scenario and data remain fully synthetic.
+            # All policy parameters below are synthetic/demo values for this
+            # fictional scenario. They do not represent official Ryde policy.
             "cancellation_policy": {
-                "free_wait_time_min": 3,
-                "cancellation_fee_after_wait": 4.00,
-                # Synthetic/demo value: Ryde does not publish an exact separate
-                # no-show threshold beyond the 3-minute grace period.
+                "free_wait_time_min": 5,
+                "cancellation_fee_after_wait": 5.00,
                 "no_show_threshold_min": 8,
+                "no_show_threshold_note":
+                    "Synthetic/demo assumption; not an official published threshold.",
                 "fee_goes_to": "driver_compensation",
             },
         },
@@ -135,8 +134,10 @@ DISPUTES = [
             "fraud_flag_details": "flagged_for_frequent_late_cancellations",
             "payment_method": "e-wallet",
         },
-        # Known-answer test case for validating the Judge agent later.
-        "expected_ruling": "UPHELD",
+        # Expected ruling: the rider's complaint is REJECTED because GPS and
+        # comms evidence strongly support that the driver was present and the
+        # rider did not board within the grace period.
+        "expected_ruling": "REJECTED",
     },
     {
         "id": 3,
@@ -170,8 +171,10 @@ DISPUTES = [
             },
             "driver_submitted_photo": {
                 "timestamp": "2026-09-18T19:29:00+08:00",
-                "description": "Driver-submitted in-app photo showing a dark spilled-drink stain on the right side of the rear passenger seat, filed 5 minutes after drop-off.",
-                "metadata": "Uploaded through the driver app as a cleaning-fee report; photo has no before-ride comparison image.",
+                "description":
+                    "Driver-submitted in-app photo showing a dark spilled-drink stain on the right side of the rear passenger seat, filed 5 minutes after drop-off.",
+                "metadata":
+                    "Uploaded through the driver app as a cleaning-fee report; photo has no before-ride comparison image.",
             },
             "cleaning_fee_charge_event": {
                 "timestamp": "2026-09-18T19:36:00+08:00",
@@ -236,7 +239,8 @@ DISPUTES = [
                 "trip_id": "TRIP-2026-10877",
                 "filed_by": "rider",
                 "dispute_type": "lost_item_return",
-                "description": "Rider reports a phone left in the vehicle and disputes the driver's requested delivery fee for returning it.",
+                "description":
+                    "Rider reports a phone left in the vehicle and disputes the driver's requested delivery fee for returning it.",
                 "filed_at": "2026-09-22T23:20:00+08:00",
                 "status": "open",
             },
@@ -272,7 +276,8 @@ DISPUTES = [
             ],
             "lost_item_policy": {
                 "return_coordination": "Rider and driver should coordinate return through in-app messaging or support.",
-                "fee_note": "Any return compensation in this demo case is synthetic and should be assessed for reasonableness.",
+                "fee_note":
+                    "Any return compensation in this demo case is synthetic and should be assessed for reasonableness.",
             },
             "evidence_weight_notes": [
                 "The report was filed shortly after drop-off, which supports the rider's claim.",
@@ -286,7 +291,13 @@ DISPUTES = [
             "rating": 4.6,
             "total_completed_trips": 2140,
             "account_age_days": 760,
-            "dispute_history": {"total_disputes": 5, "lost_item_complaints": 2, "lost_item_resolved": 2, "upheld_against": 1, "rejected": 2},
+            "dispute_history": {
+                "total_disputes": 5,
+                "lost_item_complaints": 2,
+                "lost_item_resolved": 2,
+                "upheld_against": 1,
+                "rejected": 2,
+            },
             "fraud_flags": 0,
             "vehicle": "Hyundai Ioniq (SND 9021 B)",
         },

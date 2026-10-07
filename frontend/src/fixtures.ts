@@ -31,7 +31,7 @@ export const CASES: DisputeCase[] = [
     id: 2,
     title: "No-Show Charge Dispute",
     rider_complaint:
-      "I was at the pickup point at Tiong Bahru Plaza on time but the driver never showed up. I waited 10 minutes at the lobby and couldn't find the car. The app charged me a $4.00 cancellation fee for a 'no-show' which is completely unfair — I was there, the driver was not. I want the charge reversed immediately.",
+      "I was at the pickup point at Tiong Bahru Plaza on time but the driver never showed up. I waited 10 minutes at the lobby and couldn't find the car. The app charged me a $5.00 cancellation fee for a 'no-show' which is completely unfair — I was there, the driver was not. I want the charge reversed immediately.",
     evidence: {
       dispute_ticket: {
         dispute_id: "DISP-002",
@@ -39,7 +39,7 @@ export const CASES: DisputeCase[] = [
         filed_by: "rider",
         dispute_type: "no_show_charge",
         description:
-          "I was at the pickup point at Tiong Bahru Plaza on time but the driver never showed up. I waited 10 minutes at the lobby and couldn't find the car. The app charged me a $4.00 cancellation fee for a 'no-show' which is completely unfair — I was there, the driver was not. I want the charge reversed immediately.",
+          "I was at the pickup point at Tiong Bahru Plaza on time but the driver never showed up. I waited 10 minutes at the lobby and couldn't find the car. The app charged me a $5.00 cancellation fee for a 'no-show' which is completely unfair — I was there, the driver was not. I want the charge reversed immediately.",
         filed_at: "2026-09-13T09:20:00+08:00",
         status: "open",
       },
@@ -53,7 +53,7 @@ export const CASES: DisputeCase[] = [
         driver_arrival_time: "2026-09-13T08:43:00+08:00",
         driver_wait_start: "2026-09-13T08:43:00+08:00",
         cancellation_time: "2026-09-13T08:51:00+08:00",
-        cancellation_fee: 4.0,
+        cancellation_fee: 5.0,
         cancellation_reason: "rider_no_show",
       },
       gps_telemetry: [
@@ -72,7 +72,7 @@ export const CASES: DisputeCase[] = [
         { timestamp: "2026-09-13T08:47:05+08:00", sender: "driver", type: "call", content: "Outgoing call to rider — not answered (rang 22s, no response)." },
         { timestamp: "2026-09-13T08:49:30+08:00", sender: "driver", type: "message", content: "Hi, are you coming down? I've been waiting a while." },
         { timestamp: "2026-09-13T08:50:45+08:00", sender: "driver", type: "message", content: "Please let me know, otherwise I'll have to cancel the trip." },
-        { timestamp: "2026-09-13T08:51:00+08:00", sender: "system", type: "system", content: "Trip cancelled by driver. Reason: rider_no_show. Cancellation fee of $4.00 applied." },
+        { timestamp: "2026-09-13T08:51:00+08:00", sender: "system", type: "system", content: "Trip cancelled by driver. Reason: rider_no_show. Cancellation fee of $5.00 applied." },
       ],
       app_events: [
         { timestamp: "2026-09-13T08:30:00+08:00", event_type: "booking_confirmed", details: "Rider R-7823 booked trip TRIP-2026-09945 from Tiong Bahru Plaza to VivoCity. Scheduled pickup 08:45." },
@@ -80,20 +80,20 @@ export const CASES: DisputeCase[] = [
         { timestamp: "2026-09-13T08:30:20+08:00", event_type: "driver_en_route", details: "Driver started navigating to pickup location. Live tracking enabled." },
         { timestamp: "2026-09-13T08:43:00+08:00", event_type: "driver_arrived", details: "Driver GPS within 10m of pickup point. Speed 0 km/h. Auto-arrival confirmed." },
         { timestamp: "2026-09-13T08:43:05+08:00", event_type: "rider_notified", details: "Push notification + in-app alert sent to rider: 'Your driver has arrived.'" },
-        { timestamp: "2026-09-13T08:43:10+08:00", event_type: "wait_timer_started", details: "Free wait timer started. 3 min free wait period ends at 08:46." },
+        { timestamp: "2026-09-13T08:43:10+08:00", event_type: "wait_timer_started", details: "Free wait timer started. 5 min free wait period ends at 08:48." },
         { timestamp: "2026-09-13T08:47:05+08:00", event_type: "driver_called_rider", details: "Driver initiated in-app call to rider. Call rang 22s, no answer." },
-        { timestamp: "2026-09-13T08:46:10+08:00", event_type: "wait_timer_expired", details: "Free 3-min wait period expired. Rider had not boarded. Cancellation fee now applicable per policy." },
-        { timestamp: "2026-09-13T08:51:00+08:00", event_type: "cancellation_fee_applied", details: "No-show threshold (8 min) reached. $4.00 cancellation fee charged to rider payment method (e-wallet)." },
+        { timestamp: "2026-09-13T08:48:10+08:00", event_type: "wait_timer_expired", details: "Free 5-min wait period expired. Rider had not boarded. Cancellation fee now applicable per policy." },
+        { timestamp: "2026-09-13T08:51:00+08:00", event_type: "cancellation_fee_applied", details: "No-show threshold (8 min) reached. $5.00 cancellation fee charged to rider payment method (e-wallet)." },
         { timestamp: "2026-09-13T08:51:05+08:00", event_type: "driver_released", details: "Driver D-2398 released from trip. Trip status: cancelled (rider_no_show)." },
       ],
       cancellation_policy: {
         policy_note:
-          "Policy parameters aligned with Ryde's publicly documented Cancellation and Waiting Time Policy (help.rydesharing.com) as of Oct 2026; specific dispute scenario and data remain fully synthetic.",
-        free_wait_time_min: 3,
-        cancellation_fee_after_wait: 4.0,
+          "All policy parameters below are synthetic/demo values for this fictional scenario. They do not represent official Ryde policy.",
+        free_wait_time_min: 5,
+        cancellation_fee_after_wait: 5.0,
         no_show_threshold_min: 8,
         no_show_threshold_note:
-          "Synthetic/demo value; Ryde does not publish an exact separate no-show threshold beyond the 3-minute grace period.",
+          "Synthetic/demo assumption; not an official published threshold.",
         fee_goes_to: "driver_compensation",
       },
     },
@@ -301,13 +301,13 @@ export const MOCK_RESULTS: Record<number, ReviewResult> = {
     caseId: 2,
     status: "complete",
     riderCase:
-      "The rider was present at the pickup location and waited in the lobby area. The driver claims to have arrived, but the rider never saw the vehicle. The cancellation fee of $4.00 is unfair because the rider was ready and available. The chat logs show the driver sent messages, but the rider disputes receiving them or the driver being at the correct location.",
+      "The rider was present at the pickup location and waited in the lobby area. The driver claims to have arrived, but the rider never saw the vehicle. The cancellation fee of $5.00 is unfair because the rider was ready and available. The chat logs show the driver sent messages, but the rider disputes receiving them or the driver being at the correct location.",
     driverCase:
-      "The driver arrived at the pickup point at 08:43, confirmed by GPS telemetry showing the vehicle stationary at the correct coordinates. The driver sent multiple messages and attempted a call that went unanswered. The rider did not board within the 8-minute no-show threshold, and the cancellation fee was applied per policy after the free 3-minute wait period expired.",
-    decision: "SIMULATED — UPHELD",
+      "The driver arrived at the pickup point at 08:43, confirmed by GPS telemetry showing the vehicle stationary at the correct coordinates. The driver sent multiple messages and attempted a call that went unanswered. The rider did not board within the 8-minute no-show threshold, and the cancellation fee was applied per policy after the free 5-minute wait period expired.",
+    decision: "SIMULATED — REJECTED",
     confidence: "68%",
     explanation:
-      "GPS data confirms the driver was at the pickup location. The rider's claim of not seeing the car is not independently verified. However, the rider's history of 4 prior disputes (3 rejected) is noted. The cancellation fee is upheld per policy, but the case is flagged for review of lobby-area pickup procedures.",
+      "GPS data confirms the driver was at the pickup location. The rider's claim of not seeing the car is not independently verified. The rider did not board within the grace period, and the cancellation fee was applied per policy. The rider's complaint is rejected; the fee stands. The rider's history of 4 prior disputes (3 rejected) is noted, and the case is flagged for review of lobby-area pickup procedures.",
     escalate: false,
   },
   3: {

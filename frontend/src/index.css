@@ -97,6 +97,21 @@
   50% { opacity: 0.7; }
 }
 
+@layer components {
+  /* Timeline connector */
+  .timeline-connector {
+    position: absolute;
+    left: 15px;
+    top: 32px;
+    bottom: -8px;
+    width: 2px;
+    background: #E5E7EB;
+  }
+  .timeline-item:last-child .timeline-connector {
+    display: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
