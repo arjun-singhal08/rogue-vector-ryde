@@ -1,0 +1,108 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica Neue, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    margin: 0;
+    background: #F6F7F9;
+    color: #111827;
+  }
+
+  #root {
+    min-height: 100svh;
+    display: flex;
+    flex-direction: column;
+  }
+}
+
+@layer components {
+  /* Button sheen sweep */
+  .btn-sheen {
+    position: relative;
+    overflow: hidden;
+  }
+  .btn-sheen::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      105deg,
+      transparent 40%,
+      rgba(255, 255, 255, 0.22) 45%,
+      rgba(255, 255, 255, 0.22) 55%,
+      transparent 60%
+    );
+    transform: translateX(-100%);
+  }
+  .btn-sheen:hover:not(:disabled)::after {
+    animation: sheen-sweep 500ms ease-out;
+  }
+
+  /* Button glow */
+  .btn-glow {
+    transition: box-shadow 200ms ease, transform 100ms ease;
+  }
+  .btn-glow:hover:not(:disabled) {
+    box-shadow: 0 0 0 3px rgba(8, 127, 140, 0.18), 0 0 18px rgba(8, 127, 140, 0.22);
+  }
+
+  /* Button press */
+  .btn-press {
+    transition: transform 80ms ease;
+  }
+  .btn-press:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+
+  /* Decision reveal */
+  .decision-reveal {
+    animation: decision-reveal 250ms ease-out both;
+  }
+
+  /* Content enter on case switch */
+  .content-enter {
+    animation: content-enter 150ms ease-out;
+  }
+}
+
+@keyframes sheen-sweep {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(100%); }
+}
+
+@keyframes decision-reveal {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes content-enter {
+  from { opacity: 0.55; }
+  to { opacity: 1; }
+}
+
+@keyframes connector-fill {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+@keyframes stage-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
