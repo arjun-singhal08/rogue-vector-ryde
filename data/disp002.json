@@ -56,5 +56,12 @@
     {"timestamp": "2026-09-13T08:51:00+08:00", "event_type": "cancellation_fee_applied", "details": "No-show threshold (8 min) reached. $5.00 cancellation fee charged to rider payment method (e-wallet)."},
     {"timestamp": "2026-09-13T08:51:05+08:00", "event_type": "driver_released", "details": "Driver D-2398 released from trip. Trip status: cancelled (rider_no_show)."}
   ],
-  "cancellation_policy": {"free_wait_time_min": 5, "cancellation_fee_after_wait": 5.00, "no_show_threshold_min": 8, "fee_goes_to": "driver_compensation"}
+  "cancellation_policy": {
+    "policy_note": "Policy parameters aligned with Ryde's publicly documented Cancellation and Waiting Time Policy (help.rydesharing.com) as of Oct 2026; specific dispute scenario and data remain fully synthetic.",
+    "free_wait_time_min": 3,
+    "cancellation_fee_after_wait": 4.00,
+    "no_show_threshold_min": 8,
+    "no_show_threshold_note": "Synthetic/demo value; Ryde does not publish an exact separate no-show threshold beyond the 3-minute grace period.",
+    "fee_goes_to": "driver_compensation"
+  }
 }

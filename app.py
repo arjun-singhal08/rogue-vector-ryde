@@ -6,6 +6,7 @@
 #     streamlit run app.py
 # =============================================================================
 
+import html
 import os
 
 import streamlit as st
@@ -98,7 +99,7 @@ with left_col:
 
     # st.expander creates a collapsible box.  `expanded=True` means it starts
     # open.  This keeps the page tidy if we add more sections later.
-    with st.expander("Trip & Route Evidence", expanded=True):
+    with st.expander("Case Evidence", expanded=True):
         ev = selected_dispute["evidence"]
 
         # --- Route Deviation evidence (Case #1) ---
@@ -145,7 +146,7 @@ with left_col:
 
             st.markdown("**GPS Telemetry**")
             # st.dataframe renders a scrollable table from a list of dicts.
-            st.dataframe(ev["gps_telemetry"], use_container_width=True)
+            st.dataframe(ev["gps_telemetry"], width="stretch")
 
             st.divider()
 
@@ -169,6 +170,102 @@ with left_col:
             st.write(f"- Fee after free wait: ${policy['cancellation_fee_after_wait']:.2f}")
             st.write(f"- No-show threshold: {policy['no_show_threshold_min']} min")
             st.write(f"- Fee goes to: {policy['fee_goes_to']}")
+
+        # --- Property Damage / Cleaning Fee evidence (Case #3) ---
+        elif "driver_submitted_photo" in ev:
+            trip = ev["trip_data"]
+
+            st.markdown("**Trip Details**")
+            st.write(f"- Pickup: {trip['pickup_location']['name']}")
+            st.write(f"- Dropoff: {trip['dropoff_location']['name']}")
+            st.write(f"- Pickup time: {trip['pickup_time']}")
+            st.write(f"- Dropoff time: {trip['dropoff_time']}")
+            st.write(f"- Fare charged: **${trip['fare_charged']:.2f}**")
+            st.write(f"- Cleaning fee: **${trip['cleaning_fee']:.2f}**")
+
+            st.divider()
+
+            st.markdown("**Driver Photo Report**")
+            photo = ev["driver_submitted_photo"]
+            st.write(f"- Timestamp: {photo['timestamp']}")
+            st.write(f"- Description: {photo['description']}")
+            st.write(f"- Metadata: {photo['metadata']}")
+
+            st.divider()
+
+            st.markdown("**Cleaning Fee Charge Event**")
+            charge = ev["cleaning_fee_charge_event"]
+            st.write(f"- Timestamp: {charge['timestamp']}")
+            st.write(f"- Amount: **${charge['amount']:.2f}**")
+            st.write(f"- Reason: {charge['reason']}")
+            st.write(f"- Status: {charge['status']}")
+
+            st.divider()
+
+            st.markdown("**Chat Logs**")
+            for msg in ev["chat_logs"]:
+                sender = msg["sender"].capitalize()
+                msg_type = f" ({msg['type']})" if msg["type"] != "message" else ""
+                st.write(f"- *{msg['timestamp']}* **{sender}**{msg_type}: {msg['content']}")
+
+            st.divider()
+
+            st.markdown("**App Events**")
+            for evt in ev["app_events"]:
+                st.write(f"- *{evt['timestamp']}* **{evt['event_type']}**: {evt['details']}")
+
+            st.divider()
+
+            st.markdown("**Ambiguity Notes**")
+            for note in ev["ambiguity_notes"]:
+                st.write(f"- {note}")
+
+        # --- Lost Item evidence (Case #4) ---
+        elif "lost_item_report" in ev:
+            trip = ev["trip_data"]
+
+            st.markdown("**Trip Details**")
+            st.write(f"- Pickup: {trip['pickup_location']['name']}")
+            st.write(f"- Dropoff: {trip['dropoff_location']['name']}")
+            st.write(f"- Pickup time: {trip['pickup_time']}")
+            st.write(f"- Dropoff time: {trip['dropoff_time']}")
+            st.write(f"- Fare charged: **${trip['fare_charged']:.2f}**")
+
+            st.divider()
+
+            st.markdown("**Lost Item Report**")
+            report = ev["lost_item_report"]
+            st.write(f"- Item: {report['item']}")
+            st.write(f"- Reported missing: {report['reported_missing_at']}")
+            st.write(f"- Time after dropoff: {report['time_after_dropoff_min']} min")
+            st.write(f"- Reported location: {report['reported_location']}")
+
+            st.divider()
+
+            st.markdown("**Chat Logs**")
+            for msg in ev["chat_logs"]:
+                sender = msg["sender"].capitalize()
+                msg_type = f" ({msg['type']})" if msg["type"] != "message" else ""
+                st.write(f"- *{msg['timestamp']}* **{sender}**{msg_type}: {msg['content']}")
+
+            st.divider()
+
+            st.markdown("**App Events**")
+            for evt in ev["app_events"]:
+                st.write(f"- *{evt['timestamp']}* **{evt['event_type']}**: {evt['details']}")
+
+            st.divider()
+
+            st.markdown("**Lost Item Policy Context**")
+            policy = ev["lost_item_policy"]
+            st.write(f"- Return coordination: {policy['return_coordination']}")
+            st.write(f"- Fee note: {policy['fee_note']}")
+
+            st.divider()
+
+            st.markdown("**Evidence Weight Notes**")
+            for note in ev["evidence_weight_notes"]:
+                st.write(f"- {note}")
 
 # -------------------------- RIGHT COLUMN: Profiles ---------------------------
 with right_col:
@@ -233,7 +330,7 @@ btn_col1, btn_col2, btn_col3 = st.columns([1, 2, 1])
 
 with btn_col2:
     # st.button returns True on the rerun that happens *after* the user clicks.
-    if st.button("Review this complaint", use_container_width=True):
+    if st.button("Review this complaint", width="stretch"):
         # ------------------------------------------------------------------
         # These three calls are PLACEHOLDERS.
         # In the future they will be replaced by real LLM API calls that
@@ -247,22 +344,52 @@ with btn_col2:
 
         st.divider()
 
+        rider_case_html = html.escape(str(rider_case)).replace("\n", "<br>")
+        driver_case_html = html.escape(str(driver_case)).replace("\n", "<br>")
+        decision_html = html.escape(str(ruling["decision"]))
+        confidence_html = html.escape(str(ruling["confidence"]))
+        explanation_html = html.escape(str(ruling["explanation"])).replace("\n", "<br>")
+
         # ------------------------ Rider's Argument ------------------------
-        st.header("Rider's Argument")
-        with st.container(border=True):
-            st.write(rider_case)
+        st.markdown(
+            f"""
+            <div style="box-sizing: border-box; max-width: 100%; border: 1px solid rgba(128, 128, 128, 0.28); border-left: 4px solid rgba(96, 165, 250, 0.75); border-radius: 8px; padding: 1rem 1.25rem; margin-bottom: 1rem; color: inherit; text-align: left; letter-spacing: normal; overflow-wrap: anywhere; word-break: break-word;">
+                <h3 style="margin-top: 0; color: inherit; text-align: left; letter-spacing: normal;">🧑 Rider's Argument</h3>
+                <div style="color: inherit; text-align: left; letter-spacing: normal; overflow-wrap: anywhere; word-break: break-word;">{rider_case_html}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
         # ------------------------ Driver's Argument -----------------------
-        st.header("Driver's Argument")
-        with st.container(border=True):
-            st.write(driver_case)
+        st.markdown(
+            f"""
+            <div style="box-sizing: border-box; max-width: 100%; border: 1px solid rgba(128, 128, 128, 0.28); border-left: 4px solid rgba(45, 212, 191, 0.55); border-radius: 8px; padding: 1rem 1.25rem; margin-bottom: 1rem; color: inherit; text-align: left; letter-spacing: normal; overflow-wrap: anywhere; word-break: break-word;">
+                <h3 style="margin-top: 0; color: inherit; text-align: left; letter-spacing: normal;">🚗 Driver's Argument</h3>
+                <div style="color: inherit; text-align: left; letter-spacing: normal; overflow-wrap: anywhere; word-break: break-word;">{driver_case_html}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
         # -------------------------- Judge's Ruling ------------------------
-        st.header("Judge's Ruling")
-        with st.container(border=True):
-            st.markdown(f"**Decision:** {ruling['decision']}")
-            st.markdown(f"**Confidence:** {ruling['confidence']}")
-            st.markdown(f"**Explanation:** {ruling['explanation']}")
+        # Safety check: low-confidence automated decisions should not be
+        # presented as final without a human review warning. This protects
+        # riders and drivers from being bound by an uncertain AI ruling.
+        if ruling["escalate"]:
+            st.warning("⚠️ This case requires human review")
+
+        st.markdown(
+            f"""
+            <div style="box-sizing: border-box; max-width: 100%; border: 1px solid rgba(128, 128, 128, 0.32); border-left: 6px solid rgba(245, 158, 11, 0.75); border-radius: 10px; padding: 1.2rem 1.4rem; margin-top: 0.75rem; color: inherit; text-align: left; letter-spacing: normal; overflow-wrap: anywhere; word-break: break-word;">
+                <h2 style="margin-top: 0; color: inherit; text-align: left; letter-spacing: normal;">⚖️ Judge's Ruling — Final Answer</h2>
+                <p style="font-size: 1.12rem; margin-bottom: 0.4rem; color: inherit; text-align: left; letter-spacing: normal;"><strong>Decision:</strong> {decision_html}</p>
+                <p style="font-size: 1.03rem; margin-bottom: 0.8rem; color: inherit; text-align: left; letter-spacing: normal;"><strong>Confidence:</strong> {confidence_html}</p>
+                <div style="font-size: 1.03rem; color: inherit; text-align: left; letter-spacing: normal; overflow-wrap: anywhere; word-break: break-word;"><strong>Explanation:</strong> {explanation_html}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
 
 # ------------------------------------------------------------------------------

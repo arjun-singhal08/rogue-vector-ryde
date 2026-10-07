@@ -103,9 +103,14 @@ DISPUTES = [
                 {"timestamp": "2026-09-13T08:51:00+08:00", "event_type": "cancellation_fee_applied", "details": "No-show threshold (8 min) reached. $5.00 cancellation fee charged to rider payment method (e-wallet)."},
                 {"timestamp": "2026-09-13T08:51:05+08:00", "event_type": "driver_released", "details": "Driver D-2398 released from trip. Trip status: cancelled (rider_no_show)."},
             ],
+            # Policy parameters aligned with Ryde's publicly documented
+            # Cancellation and Waiting Time Policy (help.rydesharing.com) as of
+            # Oct 2026; specific dispute scenario and data remain fully synthetic.
             "cancellation_policy": {
-                "free_wait_time_min": 5,
-                "cancellation_fee_after_wait": 5.00,
+                "free_wait_time_min": 3,
+                "cancellation_fee_after_wait": 4.00,
+                # Synthetic/demo value: Ryde does not publish an exact separate
+                # no-show threshold beyond the 3-minute grace period.
                 "no_show_threshold_min": 8,
                 "fee_goes_to": "driver_compensation",
             },
@@ -132,5 +137,172 @@ DISPUTES = [
         },
         # Known-answer test case for validating the Judge agent later.
         "expected_ruling": "UPHELD",
+    },
+    {
+        "id": 3,
+        "title": "Property Damage Dispute",
+        "rider_complaint": (
+            "The driver is wrongly charging me $35 for vehicle cleaning after my ride. "
+            "They claim I spilled a drink on the back seat, but I did not have a drink "
+            "in the car and I believe the stain was already there. I want the cleaning "
+            "charge removed."
+        ),
+        "evidence": {
+            "dispute_ticket": {
+                "dispute_id": "DISP-003",
+                "trip_id": "TRIP-2026-10418",
+                "filed_by": "rider",
+                "dispute_type": "property_damage_cleaning_fee",
+                "description": "Rider disputes a $35.00 vehicle cleaning charge after the driver reported a spilled drink stain on the rear passenger seat.",
+                "filed_at": "2026-09-18T19:42:00+08:00",
+                "status": "open",
+            },
+            "trip_data": {
+                "trip_id": "TRIP-2026-10418",
+                "rider_id": "R-4419",
+                "driver_id": "D-6154",
+                "pickup_location": {"name": "Orchard Gateway", "lat": 1.3007, "lng": 103.8390},
+                "dropoff_location": {"name": "Katong Shopping Centre", "lat": 1.3043, "lng": 103.9023},
+                "pickup_time": "2026-09-18T18:55:00+08:00",
+                "dropoff_time": "2026-09-18T19:24:00+08:00",
+                "fare_charged": 24.70,
+                "cleaning_fee": 35.00,
+            },
+            "driver_submitted_photo": {
+                "timestamp": "2026-09-18T19:29:00+08:00",
+                "description": "Driver-submitted in-app photo showing a dark spilled-drink stain on the right side of the rear passenger seat, filed 5 minutes after drop-off.",
+                "metadata": "Uploaded through the driver app as a cleaning-fee report; photo has no before-ride comparison image.",
+            },
+            "cleaning_fee_charge_event": {
+                "timestamp": "2026-09-18T19:36:00+08:00",
+                "amount": 35.00,
+                "reason": "vehicle_cleaning",
+                "status": "charged_to_rider_payment_method",
+            },
+            "chat_logs": [
+                {"timestamp": "2026-09-18T19:31:00+08:00", "sender": "driver", "type": "message", "content": "Hi, I found a drink spill on the back seat after your trip and have submitted a cleaning report."},
+                {"timestamp": "2026-09-18T19:39:00+08:00", "sender": "system", "type": "system", "content": "A $35.00 cleaning fee was applied based on the driver's submitted report."},
+                {"timestamp": "2026-09-18T19:43:00+08:00", "sender": "rider", "type": "message", "content": "I did not spill anything. I did not bring a drink into the car, and the stain may have already been there."},
+                {"timestamp": "2026-09-18T19:48:00+08:00", "sender": "driver", "type": "message", "content": "The stain was not visible to me before your ride. I noticed it only after drop-off."},
+            ],
+            "app_events": [
+                {"timestamp": "2026-09-18T18:55:00+08:00", "event_type": "trip_started", "details": "Trip TRIP-2026-10418 started from Orchard Gateway."},
+                {"timestamp": "2026-09-18T19:24:00+08:00", "event_type": "trip_completed", "details": "Trip completed at Katong Shopping Centre."},
+                {"timestamp": "2026-09-18T19:29:00+08:00", "event_type": "driver_photo_report_submitted", "details": "Driver submitted one photo of a rear-seat stain via the in-app cleaning report flow."},
+                {"timestamp": "2026-09-18T19:36:00+08:00", "event_type": "cleaning_fee_applied", "details": "$35.00 cleaning fee charged to rider payment method."},
+            ],
+            "ambiguity_notes": [
+                "The photo was submitted shortly after drop-off, which supports the driver's report.",
+                "There is no pre-ride interior photo, so the evidence cannot prove definitively when or by whom the stain was caused.",
+                "The rider has a clean trip history with no prior disputes, which supports the rider's credibility but is not conclusive.",
+            ],
+        },
+        "driver_profile": {
+            "name": "Nur Aisyah Tan",
+            "rating": 4.8,
+            "total_completed_trips": 1186,
+            "account_age_days": 540,
+            "dispute_history": {"total_disputes": 3, "cleaning_fee_reports": 1, "upheld": 2, "rejected": 1},
+            "fraud_flags": 0,
+            "vehicle": "Toyota Prius (SJP 8842 K)",
+        },
+        "rider_profile": {
+            "name": "Sarah Lim",
+            "rating": 4.9,
+            "total_trips": 50,
+            "account_age_days": 420,
+            "prior_disputes": 0,
+            "dispute_history": {"total_disputes": 0, "upheld": 0, "rejected": 0},
+            "fraud_flags": 0,
+            "trip_history_note": "50 completed trips with no prior disputes or cleaning-fee incidents.",
+            "payment_method": "credit_card",
+        },
+        # Expected ruling note: a reasonable human would likely find the evidence
+        # genuinely ambiguous and may choose a partial/refund-review outcome rather
+        # than fully accepting either side without stronger proof.
+        "expected_ruling": "PARTIAL_OR_ESCALATE",
+    },
+    {
+        "id": 4,
+        "title": "Lost Item Dispute",
+        "rider_complaint": (
+            "I left my phone in the vehicle shortly after drop-off. The driver first "
+            "said they would check, then asked for an unreasonable delivery fee to return "
+            "it and stopped responding. I want help getting my phone back fairly."
+        ),
+        "evidence": {
+            "dispute_ticket": {
+                "dispute_id": "DISP-004",
+                "trip_id": "TRIP-2026-10877",
+                "filed_by": "rider",
+                "dispute_type": "lost_item_return",
+                "description": "Rider reports a phone left in the vehicle and disputes the driver's requested delivery fee for returning it.",
+                "filed_at": "2026-09-22T23:20:00+08:00",
+                "status": "open",
+            },
+            "trip_data": {
+                "trip_id": "TRIP-2026-10877",
+                "rider_id": "R-9031",
+                "driver_id": "D-7741",
+                "pickup_location": {"name": "Bugis Junction", "lat": 1.2996, "lng": 103.8558},
+                "dropoff_location": {"name": "Holland Village MRT", "lat": 1.3122, "lng": 103.7964},
+                "pickup_time": "2026-09-22T21:28:00+08:00",
+                "dropoff_time": "2026-09-22T21:56:00+08:00",
+                "fare_charged": 18.90,
+            },
+            "lost_item_report": {
+                "item": "smartphone",
+                "reported_missing_at": "2026-09-22T22:04:00+08:00",
+                "time_after_dropoff_min": 8,
+                "reported_location": "Rider states the phone was last seen on the rear seat during the ride.",
+            },
+            "chat_logs": [
+                {"timestamp": "2026-09-22T22:05:00+08:00", "sender": "rider", "type": "message", "content": "Hi, I think I left my phone in your car. I got out 8 minutes ago at Holland Village MRT. Could you please check the back seat?"},
+                {"timestamp": "2026-09-22T22:09:00+08:00", "sender": "driver", "type": "message", "content": "I am driving another passenger now. I will check after this trip."},
+                {"timestamp": "2026-09-22T22:34:00+08:00", "sender": "driver", "type": "message", "content": "I found a phone at the back. I can return it tomorrow if you pay $45 delivery fee."},
+                {"timestamp": "2026-09-22T22:36:00+08:00", "sender": "rider", "type": "message", "content": "That fee is too high. I can meet you near your next pickup or pay a reasonable return fee through the app."},
+                {"timestamp": "2026-09-22T22:52:00+08:00", "sender": "rider", "type": "message", "content": "Please confirm a fair way to return it. This is urgent."},
+                {"timestamp": "2026-09-22T23:18:00+08:00", "sender": "system", "type": "system", "content": "No further driver response recorded before dispute was filed."},
+            ],
+            "app_events": [
+                {"timestamp": "2026-09-22T21:56:00+08:00", "event_type": "trip_completed", "details": "Trip completed at Holland Village MRT."},
+                {"timestamp": "2026-09-22T22:04:00+08:00", "event_type": "lost_item_report_created", "details": "Rider reported missing smartphone 8 minutes after drop-off."},
+                {"timestamp": "2026-09-22T22:34:00+08:00", "event_type": "driver_item_found_message", "details": "Driver message states they found a phone in the vehicle."},
+                {"timestamp": "2026-09-22T23:20:00+08:00", "event_type": "support_ticket_opened", "details": "Rider opened lost-item dispute after the return-fee chat remained unresolved."},
+            ],
+            "lost_item_policy": {
+                "return_coordination": "Rider and driver should coordinate return through in-app messaging or support.",
+                "fee_note": "Any return compensation in this demo case is synthetic and should be assessed for reasonableness.",
+            },
+            "evidence_weight_notes": [
+                "The report was filed shortly after drop-off, which supports the rider's claim.",
+                "The driver's own message says they found a phone, which strongly supports that an item was in the vehicle.",
+                "The driver's two prior similar complaints matter, but both were resolved and do not prove misconduct in this case.",
+                "The exact fee reasonableness remains partly subjective without a published route or return-cost record.",
+            ],
+        },
+        "driver_profile": {
+            "name": "Daniel Koh",
+            "rating": 4.6,
+            "total_completed_trips": 2140,
+            "account_age_days": 760,
+            "dispute_history": {"total_disputes": 5, "lost_item_complaints": 2, "lost_item_resolved": 2, "upheld_against": 1, "rejected": 2},
+            "fraud_flags": 0,
+            "vehicle": "Hyundai Ioniq (SND 9021 B)",
+        },
+        "rider_profile": {
+            "name": "Alicia Tan",
+            "rating": 4.7,
+            "total_trips": 87,
+            "account_age_days": 610,
+            "prior_disputes": 1,
+            "dispute_history": {"total_disputes": 1, "upheld": 1, "rejected": 0},
+            "fraud_flags": 0,
+            "payment_method": "credit_card",
+        },
+        # Expected ruling note: a reasonable human would likely lean toward the
+        # rider because the report was prompt and the driver acknowledged finding
+        # a phone, while treating the prior driver history as meaningful but not conclusive.
+        "expected_ruling": "UPHELD_OR_PARTIAL",
     },
 ]

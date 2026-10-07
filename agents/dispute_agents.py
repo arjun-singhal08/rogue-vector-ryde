@@ -99,8 +99,10 @@ Prior disputes: {dispute_data['rider_profile']['prior_disputes']}
 Instructions:
 1. State the rider's core grievance clearly.
 2. Highlight specific evidence that supports the rider's position.
-3. Keep the tone professional and factual.
-4. Do not mention that you are an AI.
+3. Write in clear paragraph form only, similar to a professional case summary.
+4. Do NOT use markdown tables, HTML tables, or table-like formatting.
+5. Keep the tone professional and factual.
+6. Do not mention that you are an AI.
 """
 
     return call_groq(prompt)
@@ -156,8 +158,10 @@ Your job is to build the strongest fair case for the driver using ONLY the evide
 Instructions:
 1. Acknowledge the rider's complaint but explain why the driver acted appropriately based on the evidence.
 2. Highlight specific evidence (GPS data, app events, chat logs, policy rules) that supports the driver's position.
-3. Keep the tone professional and factual.
-4. Do not mention that you are an AI.
+3. Write in clear paragraph form, similar to a professional case summary.
+4. Do NOT use markdown tables, HTML tables, or table-like formatting.
+5. Keep the tone professional and factual.
+6. Do not mention that you are an AI.
 """
 
     return call_groq(prompt)
@@ -188,9 +192,10 @@ def judge_ruling(rider_case: str, driver_case: str, dispute_data: dict) -> dict:
     -------
     dict
         Ruling dict with keys:
-        - "decision"     : str  (e.g. "UPHELD", "REJECTED", "PARTIAL")
-        - "confidence"   : str  (percentage, e.g. "85%")
-        - "explanation"  : str  (plain-English reasoning)
+        - "decision"     : str   (e.g. "UPHELD", "REJECTED", "PARTIAL")
+        - "confidence"   : str   (percentage, e.g. "85%")
+        - "explanation"  : str   (plain-English reasoning)
+        - "escalate"     : bool  (True when confidence is below 60%)
     """
     # -------------------------------------------------------------------------
     # Build the evidence block so the judge can verify claims against raw data.
@@ -245,6 +250,7 @@ IMPORTANT — Respond in strict JSON format with exactly these keys and no extra
             "decision": "[ERROR]",
             "confidence": "N/A",
             "explanation": response_text,
+            "escalate": True,
         }
 
     # -------------------------------------------------------------------------
@@ -269,6 +275,7 @@ IMPORTANT — Respond in strict JSON format with exactly these keys and no extra
             "decision": "[ERROR]",
             "confidence": "N/A",
             "explanation": f"[ERROR] Could not parse judge response as JSON: {exc}\n\nRaw response:\n{response_text}",
+            "escalate": True,
         }
 
     # Ensure the required keys exist.  If the model omitted one, fall back.
@@ -282,6 +289,33 @@ IMPORTANT — Respond in strict JSON format with exactly these keys and no extra
                 f"[ERROR] Judge response missing required keys: {missing}.\n\n"
                 f"Parsed JSON:\n{json.dumps(ruling, indent=2)}"
             ),
+            "escalate": True,
         }
+
+    # -------------------------------------------------------------------------
+    # Escalation check — low-confidence rulings should NOT be auto-finalized.
+    #
+    # The model returns confidence as a string like "85%". We strip any "%"
+    # sign and convert to a float so we can compare against the 60% threshold.
+    # If confidence is below 60%, we flag the case for human review rather
+    # than letting an uncertain AI decision stand as final.
+    # -------------------------------------------------------------------------
+    confidence_str = str(ruling.get("confidence", "0%")).replace("%", "").strip()
+    try:
+        confidence_num = float(confidence_str)
+    except ValueError:
+        # If the model returned something unparseable (e.g. "medium"),
+        # treat it as low-confidence and escalate for safety.
+        confidence_num = 0.0
+
+    if confidence_num < 60:
+        ruling["escalate"] = True
+        ruling["explanation"] += (
+            "\n\n[ESCALATION NOTICE] Confidence is below the platform's threshold "
+            "for automated resolution. This case is being flagged for human review "
+            "rather than finalized automatically."
+        )
+    else:
+        ruling["escalate"] = False
 
     return ruling
