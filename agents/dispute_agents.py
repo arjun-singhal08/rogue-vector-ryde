@@ -9,6 +9,7 @@ import json
 import math
 import os
 import time
+from typing import Callable
 
 import groq
 from groq import Groq
@@ -38,7 +39,7 @@ def call_groq(
     max_completion_tokens: int = 512,
     timing_out: dict | None = None,
     response_format: dict | None = None,
-    state_callback: callable | None = None,
+    state_callback: Callable[[str, float | None], None] | None = None,
     reasoning_effort: str | None = None,
     time_budget: float = 60.0,
 ) -> str:
@@ -256,7 +257,7 @@ def call_groq(
 # -----------------------------------------------------------------------------
 # Agent: Rider Advocate
 # -----------------------------------------------------------------------------
-def rider_advocate(dispute_data: dict, timing_out: dict | None = None, state_callback: callable | None = None) -> str:
+def rider_advocate(dispute_data: dict, timing_out: dict | None = None, state_callback: Callable[[str, float | None], None] | None = None) -> str:
     evidence_json = json.dumps(dispute_data["evidence"], indent=2)
 
     prompt = f"""You are an advocate representing the rider in a ride-hailing dispute.
@@ -298,7 +299,7 @@ Prior disputes: {dispute_data['rider_profile']['prior_disputes']}
 # -----------------------------------------------------------------------------
 # Agent: Driver Advocate
 # -----------------------------------------------------------------------------
-def driver_advocate(dispute_data: dict, timing_out: dict | None = None, state_callback: callable | None = None) -> str:
+def driver_advocate(dispute_data: dict, timing_out: dict | None = None, state_callback: Callable[[str, float | None], None] | None = None) -> str:
     evidence_json = json.dumps(dispute_data["evidence"], indent=2)
 
     prompt = f"""You are an advocate representing the driver in a ride-hailing dispute.
@@ -429,7 +430,7 @@ def validate_judge_output(raw: object) -> dict:
 # Agent: Judge
 # -----------------------------------------------------------------------------
 def judge_ruling(
-    rider_case: str, driver_case: str, dispute_data: dict, timing_out: dict | None = None, state_callback: callable | None = None
+    rider_case: str, driver_case: str, dispute_data: dict, timing_out: dict | None = None, state_callback: Callable[[str, float | None], None] | None = None
 ) -> dict:
     evidence_json = json.dumps(dispute_data["evidence"], indent=2)
 
