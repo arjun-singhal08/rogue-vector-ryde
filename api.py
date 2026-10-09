@@ -46,6 +46,7 @@ app.add_middleware(
 _MAX_CONCURRENT = 1
 
 _jobs_lock = threading.Lock()
+_active_workers: set[str] = set()
 _jobs: dict[str, dict[str, Any]] = {}
 _active_case_reviews: dict[int, str] = {}  # case_id -> review_id
 
@@ -82,8 +83,18 @@ def _log_job_summary(job: dict) -> None:
             "status": job.get("status"),
             "timings": job.get("timings", {})
         }
+        if job.get("error"):
+            err_str = str(job["error"])
+            if "Reason:" in err_str:
+                err_str = err_str.split("Reason:")[1]
+            elif err_str.startswith("[ERROR]"):
+                err_str = err_str[7:]
+            safe_err = err_str.split(":")[0].split("\n")[0].split("(")[0].strip()
+            log_entry["error"] = safe_err
+        log_json = json.dumps(log_entry)
+        print(log_json)
         with open("review_logs.jsonl", "a") as f:
-            f.write(json.dumps(log_entry) + "\n")
+            f.write(log_json + "\n")
     except Exception:
         pass
 
@@ -94,6 +105,8 @@ def _release_case(case_id: int, review_id: str) -> None:
             _log_job_summary(_jobs[review_id])
         if _active_case_reviews.get(case_id) == review_id:
             del _active_case_reviews[case_id]
+        if review_id in _active_workers:
+            _active_workers.remove(review_id)
 
 
 # -----------------------------------------------------------------------------
@@ -111,9 +124,22 @@ def _run_review(review_id: str, case: dict) -> None:
         _update_job(review_id, operational_state=state, retry_deadline=retry_deadline)
 
     try:
+        remaining_time = 120.0 - (time.monotonic() - review_start)
+        if remaining_time <= 0:
+            timings["total_ms"] = round((time.monotonic() - review_start) * 1000)
+            _update_job(
+                review_id,
+                status="failed",
+                error="[ERROR] Review exceeded 120-second deadline.",
+                stage=None,
+                timings=timings,
+            )
+            _release_case(case_id, review_id)
+            return
+
         _update_job(review_id, stage="rider", operational_state="processing")
         rider_timing: dict[str, Any] = {}
-        rider_case = rider_advocate(case, timing_out=rider_timing, state_callback=state_callback)
+        rider_case = rider_advocate(case, timing_out=rider_timing, state_callback=state_callback, time_budget=remaining_time)
         for k, v in rider_timing.items():
             key = "rider_ms" if k == "duration_ms" else f"rider_{k}"
             timings[key] = v
@@ -130,9 +156,22 @@ def _run_review(review_id: str, case: dict) -> None:
             _release_case(case_id, review_id)
             return
 
+        remaining_time = 120.0 - (time.monotonic() - review_start)
+        if remaining_time <= 0:
+            timings["total_ms"] = round((time.monotonic() - review_start) * 1000)
+            _update_job(
+                review_id,
+                status="failed",
+                error="[ERROR] Review exceeded 120-second deadline.",
+                stage=None,
+                timings=timings,
+            )
+            _release_case(case_id, review_id)
+            return
+
         _update_job(review_id, rider_case=rider_case, stage="driver", operational_state="processing")
         driver_timing: dict[str, Any] = {}
-        driver_case = driver_advocate(case, timing_out=driver_timing, state_callback=state_callback)
+        driver_case = driver_advocate(case, timing_out=driver_timing, state_callback=state_callback, time_budget=remaining_time)
         for k, v in driver_timing.items():
             key = "driver_ms" if k == "duration_ms" else f"driver_{k}"
             timings[key] = v
@@ -149,9 +188,22 @@ def _run_review(review_id: str, case: dict) -> None:
             _release_case(case_id, review_id)
             return
 
+        remaining_time = 120.0 - (time.monotonic() - review_start)
+        if remaining_time <= 0:
+            timings["total_ms"] = round((time.monotonic() - review_start) * 1000)
+            _update_job(
+                review_id,
+                status="failed",
+                error="[ERROR] Review exceeded 120-second deadline.",
+                stage=None,
+                timings=timings,
+            )
+            _release_case(case_id, review_id)
+            return
+
         _update_job(review_id, driver_case=driver_case, stage="judge", operational_state="processing")
         judge_timing: dict[str, Any] = {}
-        ruling = judge_ruling(rider_case, driver_case, case, timing_out=judge_timing, state_callback=state_callback)
+        ruling = judge_ruling(rider_case, driver_case, case, timing_out=judge_timing, state_callback=state_callback, time_budget=remaining_time)
         for k, v in judge_timing.items():
             key = "judge_ms" if k == "duration_ms" else f"judge_{k}"
             timings[key] = v
@@ -242,7 +294,7 @@ def start_review(case_id: int) -> Any:
             )
 
         # Bound concurrent work.
-        running_count = sum(1 for j in _jobs.values() if j["status"] == "running")
+        running_count = len(_active_workers)
         if running_count >= _MAX_CONCURRENT:
             raise HTTPException(
                 status_code=503,
@@ -267,6 +319,7 @@ def start_review(case_id: int) -> Any:
         _review_history.append(time.monotonic())
         _jobs[review_id] = job
         _active_case_reviews[case_id] = review_id
+        _active_workers.add(review_id)
 
     thread = threading.Thread(target=_run_review, args=(review_id, case), daemon=True)
     thread.start()
@@ -287,15 +340,6 @@ def get_review(review_id: str) -> dict:
             try:
                 started = datetime.fromisoformat(job["started_at"])
                 elapsed_ms = round((datetime.now(timezone.utc) - started).total_seconds() * 1000)
-                
-                # Check for 2-minute deadline (120,000 ms)
-                if elapsed_ms > 120000:
-                    job["status"] = "failed"
-                    job["error"] = "[ERROR] Overall review deadline exceeded."
-                    job["stage"] = None
-                    if job["case_id"] in _active_case_reviews and _active_case_reviews[job["case_id"]] == review_id:
-                        del _active_case_reviews[job["case_id"]]
-                    _log_job_summary(job)
             except (ValueError, TypeError):
                 pass
 

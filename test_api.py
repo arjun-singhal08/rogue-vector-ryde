@@ -53,6 +53,7 @@ class TestReviewLifecycle(unittest.TestCase):
         with api._jobs_lock:
             api._jobs.clear()
             api._active_case_reviews.clear()
+            api._active_workers.clear()
 
     def test_start_and_poll_review(self):
         with patch("api.rider_advocate", return_value="Rider argument text."), \
@@ -722,6 +723,7 @@ class TestAdvancedReviewLifecycle(unittest.TestCase):
         with api._jobs_lock:
             api._jobs.clear()
             api._active_case_reviews.clear()
+            api._active_workers.clear()
         self._orig_max_concurrent = api._MAX_CONCURRENT
         self._orig_review_history = api._review_history.copy()
         api._MAX_CONCURRENT = 1
@@ -741,7 +743,7 @@ class TestAdvancedReviewLifecycle(unittest.TestCase):
             self.assertEqual(start2.status_code, 409)
             self.assertEqual(start2.json()["review_id"], rid)
 
-    def test_overall_deadline_expires_job(self):
+    def test_polling_does_not_mutate_running_job(self):
         from datetime import datetime, timezone, timedelta
 
         with patch("api._run_review"):
@@ -754,8 +756,8 @@ class TestAdvancedReviewLifecycle(unittest.TestCase):
             api._jobs[rid]["started_at"] = old_time
 
         poll = client.get(f"/api/reviews/{rid}")
-        self.assertEqual(poll.json()["status"], "failed")
-        self.assertIn("Overall review deadline exceeded", poll.json()["error"])
+        self.assertEqual(poll.json()["status"], "running")
+        # Polling must not modify the job status for a still-running worker
 
     def test_late_worker_does_not_overwrite_terminal_status(self):
         with patch("api._run_review"):
@@ -806,6 +808,60 @@ class TestAdvancedReviewLifecycle(unittest.TestCase):
                 os.environ["MAX_REVIEWS_PER_HOUR"] = orig
             else:
                 os.environ.pop("MAX_REVIEWS_PER_HOUR", None)
+
+
+    def test_worker_enforces_monotonic_deadline(self):
+        """Worker must fail itself if the 120s deadline is exceeded between stages."""
+        with patch("api.time.monotonic", side_effect=[100.0, 300.0, 300.0, 300.0]), \
+             patch("api.rider_advocate") as mock_rider:
+            
+            import api
+            case = api._find_case(1)
+            api._jobs["test-id"] = {
+                "review_id": "test-id", "case_id": 1, "status": "running", "timings": {}
+            }
+            api._active_case_reviews[1] = "test-id"
+            api._active_workers.add("test-id")
+            
+            api._run_review("test-id", case)
+            
+            job = api._jobs["test-id"]
+            self.assertEqual(job["status"], "failed")
+            self.assertIn("120-second deadline", job["error"])
+            mock_rider.assert_not_called()
+            self.assertNotIn("test-id", api._active_workers)
+
+    def test_capacity_stays_occupied_until_worker_exits(self):
+        """A running job (even if slow) must keep the worker slot occupied."""
+        import threading
+        evt = threading.Event()
+        
+        def slow_rider(*args, **kwargs):
+            evt.wait()
+            return "[ERROR] timeout"
+
+        with patch("api.rider_advocate", side_effect=slow_rider):
+            r1 = client.post("/api/cases/1/reviews")
+            self.assertEqual(r1.status_code, 200)
+            
+            # Slot is now occupied by worker 1.
+            r2 = client.post("/api/cases/2/reviews")
+            self.assertEqual(r2.status_code, 503)
+            
+            # Release worker 1.
+            evt.set()
+            
+            # Wait for worker 1 to exit.
+            import api
+            rid1 = r1.json()["review_id"]
+            for _ in range(20):
+                if rid1 not in api._active_workers:
+                    break
+                time.sleep(0.05)
+            
+            # Slot is now free.
+            r3 = client.post("/api/cases/2/reviews")
+            self.assertEqual(r3.status_code, 200)
 
 
 if __name__ == "__main__":

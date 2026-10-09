@@ -71,12 +71,18 @@ def call_groq(
     total_wait_time = 0.0
 
     for attempt in range(max_retries + 1):
+        elapsed = time.monotonic() - start
+        remaining = time_budget - elapsed
+        if remaining <= 0:
+            last_error = f"TimeoutError (stopped: budget {time_budget:.1f}s exhausted before request)"
+            break
+            
         try:
             kwargs = {
                 "messages": [{"role": "user", "content": prompt_text}],
                 "model": model,
                 "max_completion_tokens": max_completion_tokens,
-                "timeout": 30.0,
+                "timeout": min(30.0, remaining),
             }
             if response_format is not None:
                 kwargs["response_format"] = response_format
@@ -174,7 +180,10 @@ def call_groq(
 
             last_error = f"RateLimitError (status 429, req_id: {req_id}, quota: {quota_type}, requested_delay: {delay:.1f}s)"
 
-            if attempt < max_retries and total_wait_time + delay <= time_budget:
+            elapsed = time.monotonic() - start
+            remaining = time_budget - elapsed
+            
+            if attempt < max_retries and delay <= remaining:
                 retry_count += 1
                 total_wait_time += delay
                 if state_callback:
@@ -184,10 +193,8 @@ def call_groq(
                     state_callback(state="processing", retry_deadline=None)
                 continue
             else:
-                if total_wait_time >= time_budget:
-                    last_error += f" (stopped: wait budget {time_budget:.1f}s elapsed)"
-                elif total_wait_time + delay > time_budget:
-                    last_error += f" (stopped: requested retry delay exceeds remaining budget of {max(0.0, time_budget - total_wait_time):.1f}s)"
+                if delay > remaining:
+                    last_error += f" (stopped: requested retry delay exceeds remaining budget of {max(0.0, remaining):.1f}s)"
                 else:
                     last_error += f" (stopped: max retries {max_retries} exhausted)"
                 break
@@ -197,7 +204,9 @@ def call_groq(
         except (groq.APITimeoutError, groq.APIConnectionError) as exc:
             last_error = f"{type(exc).__name__}"
             delay = 1.0 * (attempt + 1)
-            if attempt < max_retries and total_wait_time + delay <= time_budget:
+            elapsed = time.monotonic() - start
+            remaining = time_budget - elapsed
+            if attempt < max_retries and delay <= remaining:
                 retry_count += 1
                 total_wait_time += delay
                 if state_callback:
@@ -207,8 +216,8 @@ def call_groq(
                     state_callback(state="processing", retry_deadline=None)
                 continue
             else:
-                if total_wait_time + delay > time_budget:
-                    last_error += f" (stopped: wait budget {time_budget:.1f}s exhausted)"
+                if delay > remaining:
+                    last_error += f" (stopped: remaining budget {max(0.0, remaining):.1f}s exhausted)"
                 else:
                     last_error += f" (stopped: max retries {max_retries} exhausted)"
                 break
@@ -225,7 +234,9 @@ def call_groq(
                         pass
                 return f"[ERROR] Provider configuration error: {exc.message}"
             delay = 1.0 * (attempt + 1)
-            if attempt < max_retries and total_wait_time + delay <= time_budget:
+            elapsed = time.monotonic() - start
+            remaining = time_budget - elapsed
+            if attempt < max_retries and delay <= remaining:
                 retry_count += 1
                 total_wait_time += delay
                 if state_callback:
@@ -235,8 +246,8 @@ def call_groq(
                     state_callback(state="processing", retry_deadline=None)
                 continue
             else:
-                if total_wait_time + delay > time_budget:
-                    last_error += f" (stopped: wait budget {time_budget:.1f}s exhausted)"
+                if delay > remaining:
+                    last_error += f" (stopped: remaining budget {max(0.0, remaining):.1f}s exhausted)"
                 else:
                     last_error += f" (stopped: max retries {max_retries} exhausted)"
                 break
@@ -257,7 +268,7 @@ def call_groq(
 # -----------------------------------------------------------------------------
 # Agent: Rider Advocate
 # -----------------------------------------------------------------------------
-def rider_advocate(dispute_data: dict, timing_out: dict | None = None, state_callback: Callable[[str, float | None], None] | None = None) -> str:
+def rider_advocate(dispute_data: dict, timing_out: dict | None = None, state_callback: Callable[[str, float | None], None] | None = None, time_budget: float = 60.0) -> str:
     evidence_json = json.dumps(dispute_data["evidence"], indent=2)
 
     prompt = f"""You are an advocate representing the rider in a ride-hailing dispute.
@@ -292,14 +303,15 @@ Prior disputes: {dispute_data['rider_profile']['prior_disputes']}
         max_completion_tokens=int(os.environ.get("GROQ_ADVOCATE_TOKENS", 4096)),
         timing_out=timing_out,
         state_callback=state_callback,
-        reasoning_effort=os.environ.get("GROQ_REASONING_EFFORT")
+        reasoning_effort=os.environ.get("GROQ_REASONING_EFFORT"),
+        time_budget=time_budget,
     )
 
 
 # -----------------------------------------------------------------------------
 # Agent: Driver Advocate
 # -----------------------------------------------------------------------------
-def driver_advocate(dispute_data: dict, timing_out: dict | None = None, state_callback: Callable[[str, float | None], None] | None = None) -> str:
+def driver_advocate(dispute_data: dict, timing_out: dict | None = None, state_callback: Callable[[str, float | None], None] | None = None, time_budget: float = 60.0) -> str:
     evidence_json = json.dumps(dispute_data["evidence"], indent=2)
 
     prompt = f"""You are an advocate representing the driver in a ride-hailing dispute.
@@ -335,7 +347,8 @@ RULES — you MUST follow all of these:
         max_completion_tokens=int(os.environ.get("GROQ_ADVOCATE_TOKENS", 4096)),
         timing_out=timing_out,
         state_callback=state_callback,
-        reasoning_effort=os.environ.get("GROQ_REASONING_EFFORT")
+        reasoning_effort=os.environ.get("GROQ_REASONING_EFFORT"),
+        time_budget=time_budget,
     )
 
 
@@ -430,7 +443,7 @@ def validate_judge_output(raw: object) -> dict:
 # Agent: Judge
 # -----------------------------------------------------------------------------
 def judge_ruling(
-    rider_case: str, driver_case: str, dispute_data: dict, timing_out: dict | None = None, state_callback: Callable[[str, float | None], None] | None = None
+    rider_case: str, driver_case: str, dispute_data: dict, timing_out: dict | None = None, state_callback: Callable[[str, float | None], None] | None = None, time_budget: float = 60.0
 ) -> dict:
     evidence_json = json.dumps(dispute_data["evidence"], indent=2)
 
@@ -509,7 +522,6 @@ IMPORTANT — Respond in strict JSON format with exactly these keys and no extra
     total_retries = 0
     total_wait_time_ms = 0
     regeneration_count = 0
-    time_budget = 60.0
     prompt_to_use = prompt
 
     for attempt in range(2):

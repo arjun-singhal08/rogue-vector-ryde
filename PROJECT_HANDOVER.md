@@ -6,6 +6,7 @@
 - **Error Handling**: 
   - **Rate Limiting (Unresolved Reliability Issue)**: Rate limit boundaries (max wait budgets) are enforced to prevent UI stalls, but underlying provider quota failures (e.g., TPD exhaustion observed in Cases 2-4) remain a separate, unresolved reliability blocker.
   - **json_validate_failed (Unresolved Reliability Issue)**: The provider error for malformed JSON is trapped, and a single fallback regeneration attempt is implemented, but the underlying model failure to conform to the strict schema is a distinct, unresolved reliability issue.
+  - **Polling/Worker Race (Case 4)**: A polling mutation bug where a slow worker could be marked failed by a timeout in the GET endpoint was identified and fixed by enforcing a monotonic 120s deadline inside the background worker thread. While this race condition existed, the historical cause of Case 4's failure is unconfirmed without access to Render's ephemeral logs.
 - **Prompt Rules**: Explicit instructions prohibit inventing policy, claiming to inspect textual photo descriptions, and using ratings for credibility. Judge handles missing evidence.
 - **Validation**: Judge output strictly enforces JSON format (using Groq `response_format` JSON schema mode), finite confidence (0-100), and valid decisions. Confidence < 60% safely sets `escalate=True`.
 - **Test Suite**: `test_api.py` (35 tests) fully covers mocked API endpoints, validation logic, review lifecycle edge cases (e.g., late workers), rate limit bounds, and `json_validate_failed` handling.
