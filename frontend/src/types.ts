@@ -102,6 +102,8 @@ export interface DisputeCase {
 export interface ReviewResult {
   caseId: number;
   status: "idle" | "running" | "complete" | "failed";
+  operationalState?: "processing" | "waiting_retry";
+  retryDeadline?: number;
   riderCase?: string;
   driverCase?: string;
   decision?: string;
@@ -109,4 +111,5 @@ export interface ReviewResult {
   explanation?: string;
   escalate?: boolean;
   error?: string;
+  elapsedMs?: number;
 }

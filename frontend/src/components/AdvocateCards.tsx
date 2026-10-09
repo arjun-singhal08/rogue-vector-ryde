@@ -45,9 +45,7 @@ function AdvocateCard({
               </span>
             </CollapsibleTrigger>
             <CollapsibleContent>
-              <div className="pt-2">
-                <p className="text-[13px] text-text-secondary leading-relaxed">{text}</p>
-              </div>
+              <div className="pt-1" aria-hidden="true" />
             </CollapsibleContent>
           </Collapsible>
         )}

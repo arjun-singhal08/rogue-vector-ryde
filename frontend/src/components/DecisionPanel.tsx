@@ -74,13 +74,19 @@ export default function DecisionPanel({ result }: DecisionPanelProps) {
   }
 
   if (result.status === "running") {
+    const elapsedSec = result.elapsedMs ? Math.round(result.elapsedMs / 1000) : 0;
     return (
       <div className="rounded-xl border border-border bg-surface p-5">
         <div className="flex items-center gap-3">
           <span className="inline-block w-5 h-5 border-2 border-teal/30 border-t-teal rounded-full animate-spin" />
           <div>
             <div className="text-[14px] font-medium text-text-primary">Review in progress</div>
-            <div className="text-[12px] text-text-muted mt-0.5">Rider Advocate &rarr; Driver Advocate &rarr; Judge</div>
+            <div className="text-[12px] text-text-muted mt-0.5">
+              Rider Advocate &rarr; Driver Advocate &rarr; Judge
+              {elapsedSec > 0 && (
+                <span className="ml-1.5 tabular-nums">({elapsedSec}s elapsed)</span>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -107,6 +113,8 @@ export default function DecisionPanel({ result }: DecisionPanelProps) {
 
   const tone = decisionTone(result.decision);
   const isSimulated = result.decision?.startsWith("SIMULATED");
+  const isExplicitEscalation =
+    result.decision === "ESCALATE" || result.decision === "ESCALATE FOR HUMAN REVIEW";
 
   const toneStyles = {
     positive: "bg-teal-light text-teal-dark border-teal/20",
@@ -124,7 +132,9 @@ export default function DecisionPanel({ result }: DecisionPanelProps) {
             <span className="text-[14px] font-semibold text-amber">Human review required</span>
           </div>
           <p className="text-[12px] text-text-secondary mt-1">
-            The model-reported confidence is below the automated-resolution threshold.
+            {isExplicitEscalation
+              ? "The judge explicitly recommended escalation for human review."
+              : "The model-reported confidence is below the automated-resolution threshold."}
           </p>
         </div>
       )}

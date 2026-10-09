@@ -132,7 +132,7 @@ The backend validates every judge response before it reaches the UI:
 - **Model-reported confidence** — The confidence score is self-reported by the LLM and is not verified ground-truth accuracy.
 - **In-memory jobs** — Reviews are stored in a thread-safe in-memory dictionary. All jobs disappear on server restart. This prototype uses a single backend worker thread.
 - **Concurrency bound** — Maximum of 2 concurrent reviews. Additional requests receive HTTP 503.
-- **No sidebar collapse on narrow viewports** — The fixed 240 px sidebar can crowd the main content on very small screens; horizontal scroll is enabled below the `md` breakpoint as a safeguard.
+- **Mobile drawer navigation** — A sheet-based drawer replaces the sidebar on narrow viewports. Desktop keeps the fixed sidebar.
 - **No persistent audit log** — Reviews are not written to disk or a database.
 
 ---

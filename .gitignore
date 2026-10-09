@@ -1,6 +1,7 @@
-# Environment variables (secrets / API keys)
 .env
-
-# Python cache files
 __pycache__/
 *.pyc
+review_logs.jsonl
+scratch/
+node_modules/
+frontend/dist/

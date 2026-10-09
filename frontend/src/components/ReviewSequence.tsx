@@ -1,10 +1,13 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { User, Truck, Scale, CheckCircle2 } from "lucide-react";
 import { cn } from "../lib/utils";
 import { animate, stagger } from "animejs";
 
 interface ReviewSequenceProps {
   stage: "rider" | "driver" | "judge" | null;
+  status?: "idle" | "running" | "complete" | "failed";
+  operationalState?: "processing" | "waiting_retry";
+  retryDeadline?: number;
   isRunning: boolean;
 }
 
@@ -14,12 +17,26 @@ const STAGES = [
   { key: "judge" as const, label: "Judge", icon: Scale },
 ] as const;
 
-export default function ReviewSequence({ stage, isRunning }: ReviewSequenceProps) {
+export default function ReviewSequence({ stage, status, operationalState, retryDeadline, isRunning }: ReviewSequenceProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const prevStageRef = useRef<string | null>(null);
+  const [countdown, setCountdown] = useState<number | null>(null);
 
   const currentIndex = stage ? STAGES.findIndex((s) => s.key === stage) : -1;
-  const hasStarted = currentIndex >= 0 || !isRunning;
+
+  useEffect(() => {
+    if (operationalState === "waiting_retry" && retryDeadline) {
+      const updateCountdown = () => {
+        const remaining = Math.max(0, Math.ceil(retryDeadline - Date.now() / 1000));
+        setCountdown(remaining);
+      };
+      updateCountdown();
+      const interval = setInterval(updateCountdown, 500);
+      return () => clearInterval(interval);
+    } else {
+      setCountdown(null);
+    }
+  }, [operationalState, retryDeadline]);
 
   // Animate stage transitions
   useEffect(() => {
@@ -56,8 +73,6 @@ export default function ReviewSequence({ stage, isRunning }: ReviewSequenceProps
     }
   }, [isRunning]);
 
-  if (!hasStarted && !isRunning) return null;
-
   return (
     <div
       ref={containerRef}
@@ -69,9 +84,17 @@ export default function ReviewSequence({ stage, isRunning }: ReviewSequenceProps
       </div>
       <div className="flex items-center gap-2 flex-wrap">
         {STAGES.map((s, i) => {
-          const isCompleted = currentIndex > i;
-          const isActive = currentIndex === i;
-          const isPending = currentIndex < i;
+          const isCompleted =
+            status === "complete"
+              ? true
+              : (status === "running" || status === "failed") && currentIndex >= 0
+                ? i < currentIndex
+                : false;
+
+          const isActive =
+            status === "running" && currentIndex >= 0 ? i === currentIndex : false;
+
+          const isPending = !isCompleted && !isActive;
 
           return (
             <div key={s.key} className="flex items-center gap-2 stage-pill">
@@ -89,7 +112,7 @@ export default function ReviewSequence({ stage, isRunning }: ReviewSequenceProps
                 ) : (
                   <s.icon className="w-3.5 h-3.5" aria-hidden />
                 )}
-                <span>{s.label}</span>
+                <span>{s.label}{isActive && operationalState === "waiting_retry" && countdown !== null && (<span className="ml-1 opacity-80 font-normal"> (wait {countdown}s)</span>)}</span>
               </div>
               {i < STAGES.length - 1 && (
                 <div className="stage-connector w-6 h-px bg-border relative overflow-hidden">

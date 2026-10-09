@@ -1,0 +1,27 @@
+services:
+  # FastAPI Backend (Free Web Service)
+  - type: web
+    name: ryderesolve-api
+    env: python
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "uvicorn api:app --host 0.0.0.0 --port $PORT --no-access-log"
+    plan: free
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.0"
+      - key: GROQ_API_KEY
+        sync: false # Requires manual entry in the Render dashboard
+      - key: FRONTEND_URL
+        value: "https://ryderesolve-ui.onrender.com"
+      - key: MAX_REVIEWS_PER_HOUR
+        value: "20"
+
+  # React Frontend (Free Static Site)
+  - type: web
+    runtime: static
+    name: ryderesolve-ui
+    buildCommand: "cd frontend && npm install && npm run build"
+    staticPublishPath: ./frontend/dist
+    envVars:
+      - key: VITE_API_URL
+        value: "https://ryderesolve-api.onrender.com"

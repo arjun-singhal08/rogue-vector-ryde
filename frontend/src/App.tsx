@@ -19,6 +19,13 @@ import { Sheet, SheetTrigger, SheetContent } from "./components/ui/sheet";
 // ---------------------------------------------------------------------------
 // Accessible announcer — speaks significant status changes once
 // ---------------------------------------------------------------------------
+
+function apiUrl(path: string): string {
+  const base = (import.meta.env.VITE_API_URL as string | undefined) || "";
+  return base.replace(/\/+$/, "") + path;
+}
+
+// ---------------------------------------------------------------------------
 function useAnnouncer() {
   const [text, setText] = useState("");
   const lastRef = useRef("");
@@ -68,7 +75,7 @@ function useCaseReviews() {
       abortControllers.current[caseId] = controller;
 
       try {
-        const res = await fetch(`/api/reviews/${reviewId}`, {
+        const res = await fetch(apiUrl(`/api/reviews/${reviewId}`), {
           signal: controller.signal,
         });
 
@@ -101,6 +108,8 @@ function useCaseReviews() {
           case_id: number;
           status: "running" | "complete" | "failed";
           stage: "rider" | "driver" | "judge" | null;
+          operational_state?: "processing" | "waiting_retry";
+          retry_deadline?: number;
           rider_case: string | null;
           driver_case: string | null;
           ruling: {
@@ -110,6 +119,7 @@ function useCaseReviews() {
             escalate: boolean;
           } | null;
           error: string | null;
+          elapsed_ms: number | null;
         };
 
         if (activeReviewIds.current[caseId] !== reviewId) return;
@@ -119,6 +129,8 @@ function useCaseReviews() {
         const mapped: ReviewResult = {
           caseId: data.case_id,
           status: data.status,
+          operationalState: data.operational_state,
+          retryDeadline: data.retry_deadline,
           riderCase: data.rider_case ?? undefined,
           driverCase: data.driver_case ?? undefined,
           decision: data.ruling?.decision ?? undefined,
@@ -126,6 +138,7 @@ function useCaseReviews() {
           explanation: data.ruling?.explanation ?? undefined,
           escalate: data.ruling?.escalate ?? undefined,
           error: data.error ?? undefined,
+          elapsedMs: data.elapsed_ms ?? undefined,
         };
 
         setReviews((prev) => ({ ...prev, [caseId]: mapped }));
@@ -165,26 +178,35 @@ function useCaseReviews() {
       setStages((prev) => ({ ...prev, [caseId]: null }));
 
       try {
-        const res = await fetch(`/api/cases/${caseId}/reviews`, {
+        const res = await fetch(apiUrl(`/api/cases/${caseId}/reviews`), {
           method: "POST",
         });
 
         if (res.status === 409) {
           const data = (await res.json().catch(() => ({}))) as {
             detail?: string;
+            review_id?: string;
           };
-          setReviews((prev) => ({
-            ...prev,
-            [caseId]: {
-              caseId,
-              status: "failed",
-              error:
-                data.detail ||
-                "A review is already running for this case.",
-            },
-          }));
-          setStages((prev) => ({ ...prev, [caseId]: null }));
-          return;
+          
+          if (data.review_id) {
+            // Attach to existing review
+            activeReviewIds.current[caseId] = data.review_id;
+            pollReview(caseId, data.review_id);
+            return;
+          } else {
+            setReviews((prev) => ({
+              ...prev,
+              [caseId]: {
+                caseId,
+                status: "failed",
+                error:
+                  data.detail ||
+                  "A review is already running for this case.",
+              },
+            }));
+            setStages((prev) => ({ ...prev, [caseId]: null }));
+            return;
+          }
         }
 
         if (res.status === 503) {
@@ -230,7 +252,7 @@ function useCaseReviews() {
             caseId,
             status: "failed",
             error:
-              "Network error. Please check your connection and try again.",
+              "Could not reach the backend. If the server just started, it may still be waking up—wait a moment and try again.",
           },
         }));
         setStages((prev) => ({ ...prev, [caseId]: null }));
@@ -283,14 +305,14 @@ export default function App() {
   const { text: announcement, announce } = useAnnouncer();
 
   useEffect(() => {
-    fetch("/api/health")
+    fetch(apiUrl("/api/health"))
       .then((r) => r.json().catch(() => ({ status: "error" })))
       .then((d: { status?: string; groq_configured?: boolean }) =>
         setGroqConfigured(d.groq_configured ?? false)
       )
       .catch(() => setGroqConfigured(false));
 
-    fetch("/api/cases")
+    fetch(apiUrl("/api/cases"))
       .then((r) => {
         if (!r.ok) throw new Error("Failed to load cases from server.");
         return r.json();
@@ -427,7 +449,11 @@ export default function App() {
                 hasFailed={hasFailed}
               />
 
-              <ReviewSequence stage={currentStage} isRunning={isRunning} />
+              <ReviewSequence
+                stage={currentStage}
+                status={currentResult?.status}
+                isRunning={isRunning}
+              />
 
               <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 items-start">
                 <div className="lg:col-span-3 min-w-0">
@@ -443,7 +469,7 @@ export default function App() {
           ) : (
             <div className="max-w-6xl mx-auto text-[13px] text-text-muted">
               {apiError
-                ? "Could not load cases. Check that the backend is running."
+                ? "Could not reach the backend. If you just deployed, the server may be waking up—wait 30–60 seconds and refresh."
                 : "Loading cases…"}
             </div>
           )}
