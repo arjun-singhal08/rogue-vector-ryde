@@ -292,6 +292,68 @@ function useCaseReviews() {
 }
 
 // ---------------------------------------------------------------------------
+// Skeleton UI
+// ---------------------------------------------------------------------------
+function AppSkeleton() {
+  return (
+    <div className="max-w-6xl mx-auto space-y-4 animate-pulse content-enter">
+      {/* Starting Service Notice */}
+      <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-center gap-3">
+        <div className="w-5 h-5 rounded-full border-2 border-slate-300 border-t-teal animate-spin shrink-0" />
+        <div className="text-[13px] font-medium text-slate-700 text-center sm:text-left">
+          Starting review service... <span className="font-normal text-slate-500 block sm:inline mt-1 sm:mt-0">This may take about a minute on free hosting.</span>
+        </div>
+      </div>
+
+      {/* CaseHeader Skeleton */}
+      <div className="bg-surface rounded-xl shadow-card border border-border p-4 sm:p-5">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+          <div className="flex-1 min-w-0">
+            <div className="flex gap-2 mb-3">
+              <div className="h-5 bg-slate-100 rounded w-20"></div>
+              <div className="h-5 bg-slate-100 rounded w-32"></div>
+            </div>
+            <div className="space-y-2 mb-2">
+              <div className="h-4 bg-slate-100 rounded w-3/4"></div>
+              <div className="h-4 bg-slate-100 rounded w-1/2"></div>
+            </div>
+          </div>
+          <div className="shrink-0">
+            <div className="h-10 w-32 bg-slate-200 rounded-md"></div>
+          </div>
+        </div>
+      </div>
+
+      {/* Grid Skeleton */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 items-start">
+        {/* Evidence Skeleton */}
+        <div className="lg:col-span-3 bg-surface rounded-xl shadow-card border border-border p-5 space-y-4">
+          <div className="h-5 bg-slate-200 rounded w-32 mb-2"></div>
+          <div className="space-y-3">
+            <div className="h-4 bg-slate-100 rounded w-full"></div>
+            <div className="h-4 bg-slate-100 rounded w-full"></div>
+            <div className="h-4 bg-slate-100 rounded w-4/5"></div>
+          </div>
+          <div className="space-y-3 mt-4">
+            <div className="h-4 bg-slate-100 rounded w-full"></div>
+            <div className="h-4 bg-slate-100 rounded w-3/4"></div>
+          </div>
+        </div>
+        {/* Decision Skeleton */}
+        <div className="lg:col-span-2 bg-surface rounded-xl shadow-card border border-border p-5 space-y-4">
+          <div className="h-5 bg-slate-200 rounded w-24 mb-2"></div>
+          <div className="h-12 bg-slate-100 rounded w-full"></div>
+          <div className="space-y-3">
+            <div className="h-4 bg-slate-100 rounded w-full"></div>
+            <div className="h-4 bg-slate-100 rounded w-5/6"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // App
 // ---------------------------------------------------------------------------
 export default function App() {
@@ -300,34 +362,65 @@ export default function App() {
   const [apiError, setApiError] = useState<string | null>(null);
   const [groqConfigured, setGroqConfigured] = useState<boolean | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(true);
+  const [isReady, setIsReady] = useState(false);
 
   const { reviews, stages, startReview, retryReview } = useCaseReviews();
   const { text: announcement, announce } = useAnnouncer();
 
   useEffect(() => {
-    fetch(apiUrl("/api/health"))
-      .then((r) => r.json().catch(() => ({ status: "error" })))
-      .then((d: { status?: string; groq_configured?: boolean }) =>
-        setGroqConfigured(d.groq_configured ?? false)
-      )
-      .catch(() => setGroqConfigured(false));
+    let attempts = 0;
+    const maxAttempts = 12; // up to 60 seconds
+    let timeoutId: number;
+    let mounted = true;
 
-    fetch(apiUrl("/api/cases"))
-      .then((r) => {
-        if (!r.ok) throw new Error("Failed to load cases from server.");
-        return r.json();
-      })
-      .then((data: DisputeCase[]) => {
-        setCases(data);
-        if (data.length > 0) {
-          setSelectedId(data[0].id);
-          announce(`Loaded ${data.length} cases.`);
+    const checkHealthAndCases = async () => {
+      try {
+        const [healthRes, casesRes] = await Promise.all([
+          fetch(apiUrl("/api/health")),
+          fetch(apiUrl("/api/cases"))
+        ]);
+
+        if (healthRes.ok && casesRes.ok) {
+          const healthData = await healthRes.json();
+          if (mounted) setGroqConfigured(healthData.groq_configured ?? false);
+
+          const casesData = await casesRes.json();
+          if (mounted) {
+            setCases((prev) => prev.length ? prev : casesData);
+            if (casesData.length > 0) {
+              setSelectedId((prev) => prev || casesData[0].id);
+              if (attempts === 0) announce(`Loaded ${casesData.length} cases.`);
+            }
+            setIsInitializing(false);
+            setIsReady(true);
+            setApiError(null);
+          }
+          return;
         }
-      })
-      .catch((err: Error) => {
-        setApiError(err.message);
-        announce(err.message);
-      });
+      } catch {
+        // Silently ignore during initialization, let it retry
+      }
+
+      attempts++;
+      if (attempts < maxAttempts) {
+        timeoutId = window.setTimeout(checkHealthAndCases, 5000);
+      } else {
+        if (mounted) {
+          setIsInitializing(false);
+          setIsReady(false);
+          setApiError("Could not reach the backend. If you just deployed, the server may be waking up - wait 30-60 seconds and refresh.");
+          announce("Failed to connect to the backend.");
+        }
+      }
+    };
+
+    checkHealthAndCases();
+
+    return () => {
+      mounted = false;
+      if (timeoutId) window.clearTimeout(timeoutId);
+    };
   }, [announce]);
 
   useEffect(() => {
@@ -436,7 +529,9 @@ export default function App() {
         )}
 
         <div className="flex-1 p-4 sm:p-5 overflow-y-auto overflow-x-hidden">
-          {selectedCase ? (
+          {cases.length === 0 && isInitializing ? (
+            <AppSkeleton />
+          ) : selectedCase ? (
             <div
               key={selectedId}
               className="max-w-6xl mx-auto space-y-4 content-enter"
@@ -447,6 +542,7 @@ export default function App() {
                 onRetry={() => retryReview(selectedCase.id)}
                 isRunning={isRunning}
                 hasFailed={hasFailed}
+                isReady={isReady}
               />
 
               <ReviewSequence

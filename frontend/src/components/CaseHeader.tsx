@@ -8,6 +8,7 @@ interface CaseHeaderProps {
   onRetry?: () => void;
   isRunning: boolean;
   hasFailed: boolean;
+  isReady?: boolean;
 }
 
 function amountInfo(ev: DisputeCase["evidence"]): { label: string; value: string } | null {
@@ -18,7 +19,7 @@ function amountInfo(ev: DisputeCase["evidence"]): { label: string; value: string
   return null;
 }
 
-export default function CaseHeader({ dispute, onReview, onRetry, isRunning, hasFailed }: CaseHeaderProps) {
+export default function CaseHeader({ dispute, onReview, onRetry, isRunning, hasFailed, isReady = true }: CaseHeaderProps) {
   const info = amountInfo(dispute.evidence);
 
   return (
@@ -44,10 +45,10 @@ export default function CaseHeader({ dispute, onReview, onRetry, isRunning, hasF
         <div className="shrink-0">
           <button
             onClick={hasFailed && onRetry ? onRetry : onReview}
-            disabled={isRunning}
+            disabled={isRunning || !isReady}
             className={cn(
               "inline-flex items-center gap-2 px-4 py-2.5 rounded-md text-sm font-medium btn-glow btn-sheen btn-press focus:outline-none focus:ring-2 focus:ring-teal/40",
-              isRunning
+              isRunning || !isReady
                 ? "bg-slate-200 text-slate-500 cursor-not-allowed"
                 : hasFailed
                   ? "bg-amber text-white hover:bg-amber-dark"
