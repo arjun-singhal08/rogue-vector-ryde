@@ -31,6 +31,34 @@ CONFIDENCE_THRESHOLD = 60.0
 
 
 # -----------------------------------------------------------------------------
+# Connection-error diagnostics (no secrets exposed)
+# -----------------------------------------------------------------------------
+def _classify_connection_error(exc: Exception) -> tuple[str, str]:
+    """Return (category, cause_type) for a connection error without exposing secrets."""
+    cause = getattr(exc, "__cause__", None)
+    cause_type = type(cause).__name__ if cause else "unknown"
+    cause_str = str(cause).lower() if cause else ""
+    if not cause:
+        cause_str = str(exc).lower()
+        cause_type = type(exc).__name__
+    if any(k in cause_str for k in ("getaddrinfo", "name", "dns", "resolution", "nxdomain")):
+        return "dns", cause_type
+    if any(k in cause_str for k in ("ssl", "tls", "certificate", "cert", "verify")):
+        return "tls", cause_type
+    if "refused" in cause_str:
+        return "connection_refused", cause_type
+    if any(k in cause_str for k in ("timeout", "timed out")):
+        return "timeout", cause_type
+    if any(k in cause_str for k in ("network", "unreachable", "noroute")):
+        return "network_unreachable", cause_type
+    return "unknown", cause_type
+
+
+def _proxy_env_present() -> list[str]:
+    return [k for k in os.environ if "proxy" in k.lower()]
+
+
+# -----------------------------------------------------------------------------
 # Low-level Groq client wrapper
 # -----------------------------------------------------------------------------
 def call_groq(
@@ -56,7 +84,7 @@ def call_groq(
     start = time.monotonic()
     retry_count = 0
 
-    api_key = os.environ.get("GROQ_API_KEY")
+    api_key = os.environ.get("GROQ_API_KEY", "").strip()
     if not api_key:
         if timing_out is not None:
             timing_out["duration_ms"] = round((time.monotonic() - start) * 1000)
@@ -64,8 +92,18 @@ def call_groq(
         return "[ERROR] GROQ_API_KEY is not configured."
 
     model = os.environ.get("GROQ_MODEL", "openai/gpt-oss-20b")
-    # Disable SDK-level retries so our outer loop is the only retry layer.
-    client = Groq(api_key=api_key, max_retries=0)
+    # Only override base_url when explicitly configured; otherwise let the SDK
+    # use its own default to avoid double-path bugs like /openai/v1/openai/v1/...
+    client_kwargs: dict = {"api_key": api_key, "max_retries": 0}
+    env_base_url = os.environ.get("GROQ_BASE_URL")
+    if env_base_url:
+        client_kwargs["base_url"] = env_base_url
+    client = Groq(**client_kwargs)
+
+    proxy_vars = _proxy_env_present()
+    if proxy_vars:
+        import sys
+        print(f"[DIAGNOSTICS] Proxy environment variables detected: {proxy_vars}", file=sys.stderr)
 
     last_error = ""
     total_wait_time = 0.0
@@ -202,7 +240,12 @@ def call_groq(
             last_error = "AuthenticationError (status 401)"
             break
         except (groq.APITimeoutError, groq.APIConnectionError) as exc:
-            last_error = f"{type(exc).__name__}"
+            category, cause_type = _classify_connection_error(exc)
+            last_error = f"{type(exc).__name__} (category: {category}, cause: {cause_type})"
+
+            import sys
+            print(f"[DIAGNOSTICS] {last_error}", file=sys.stderr)
+
             delay = 1.0 * (attempt + 1)
             elapsed = time.monotonic() - start
             remaining = time_budget - elapsed

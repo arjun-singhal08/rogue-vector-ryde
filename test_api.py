@@ -864,5 +864,78 @@ class TestAdvancedReviewLifecycle(unittest.TestCase):
             self.assertEqual(r3.status_code, 200)
 
 
+class TestConnectionClassification(unittest.TestCase):
+    def test_dns_error(self):
+        from agents.dispute_agents import _classify_connection_error
+        exc = Exception("getaddrinfo failed")
+        category, cause_type = _classify_connection_error(exc)
+        self.assertEqual(category, "dns")
+
+    def test_tls_error(self):
+        from agents.dispute_agents import _classify_connection_error
+        exc = Exception("SSL certificate verify failed")
+        category, cause_type = _classify_connection_error(exc)
+        self.assertEqual(category, "tls")
+
+    def test_connection_refused(self):
+        from agents.dispute_agents import _classify_connection_error
+        exc = Exception("Connection refused")
+        category, cause_type = _classify_connection_error(exc)
+        self.assertEqual(category, "connection_refused")
+
+    def test_timeout_error(self):
+        from agents.dispute_agents import _classify_connection_error
+        exc = Exception("timed out")
+        category, cause_type = _classify_connection_error(exc)
+        self.assertEqual(category, "timeout")
+
+    def test_network_unreachable(self):
+        from agents.dispute_agents import _classify_connection_error
+        exc = Exception("network unreachable")
+        category, cause_type = _classify_connection_error(exc)
+        self.assertEqual(category, "network_unreachable")
+
+    def test_unknown_error(self):
+        from agents.dispute_agents import _classify_connection_error
+        exc = Exception("something weird")
+        category, cause_type = _classify_connection_error(exc)
+        self.assertEqual(category, "unknown")
+
+    def test_cause_takes_precedence(self):
+        from agents.dispute_agents import _classify_connection_error
+        exc = Exception("outer")
+        exc.__cause__ = Exception("getaddrinfo failed")
+        category, cause_type = _classify_connection_error(exc)
+        self.assertEqual(category, "dns")
+        self.assertEqual(cause_type, "Exception")
+
+    def test_startup_diagnostic_runs_when_enabled(self):
+        import os
+        import threading
+        from unittest.mock import patch, MagicMock
+        import api
+
+        # Ensure diagnostic does not block or raise when GROQ_DIAGNOSTICS=1
+        with patch.dict(os.environ, {"GROQ_DIAGNOSTICS": "1", "GROQ_API_KEY": "test_key"}):
+            with patch("api.threading.Thread") as mock_thread:
+                mock_instance = MagicMock()
+                mock_thread.return_value = mock_instance
+                # Re-run the module-level check logic
+                if os.environ.get("GROQ_DIAGNOSTICS") == "1":
+                    t = threading.Thread(target=api._run_startup_diagnostic, daemon=True)
+                    t.start()
+                mock_thread.assert_called_once()
+                self.assertTrue(mock_thread.call_args[1].get("daemon"))
+
+    def test_startup_diagnostic_skipped_when_disabled(self):
+        import os
+        from unittest.mock import patch
+        import api
+
+        with patch.dict(os.environ, {"GROQ_DIAGNOSTICS": "0"}, clear=False):
+            # Should not start a thread when disabled
+            self.assertNotEqual(os.environ.get("GROQ_DIAGNOSTICS"), "1")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

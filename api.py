@@ -41,6 +41,37 @@ app.add_middleware(
 )
 
 # -----------------------------------------------------------------------------
+# Opt-in startup connectivity diagnostic (Render-safe, no shell required)
+# -----------------------------------------------------------------------------
+def _run_startup_diagnostic() -> None:
+    """Fire a single non-generation request to Groq on startup if GROQ_DIAGNOSTICS=1."""
+    import sys
+
+    api_key = os.environ.get("GROQ_API_KEY", "").strip()
+    if not api_key:
+        print("[DIAGNOSTICS] Startup diagnostic skipped: GROQ_API_KEY not configured.", file=sys.stderr)
+        return
+
+    try:
+        from groq import Groq
+        client_kwargs = {"api_key": api_key, "max_retries": 0, "timeout": 10.0}
+        env_base_url = os.environ.get("GROQ_BASE_URL")
+        if env_base_url:
+            client_kwargs["base_url"] = env_base_url
+        client = Groq(**client_kwargs)
+        models = client.models.list()
+        print(f"[DIAGNOSTICS] Startup connectivity OK. Listed {len(models.data)} models.", file=sys.stderr)
+    except Exception as exc:
+        from agents.dispute_agents import _classify_connection_error
+        category, cause_type = _classify_connection_error(exc)
+        print(f"[DIAGNOSTICS] Startup connectivity FAIL. Category: {category}, cause: {cause_type}", file=sys.stderr)
+
+
+if os.environ.get("GROQ_DIAGNOSTICS") == "1":
+    _diag_thread = threading.Thread(target=_run_startup_diagnostic, daemon=True)
+    _diag_thread.start()
+
+# -----------------------------------------------------------------------------
 # In-memory job store (thread-safe)
 # -----------------------------------------------------------------------------
 _MAX_CONCURRENT = 1
