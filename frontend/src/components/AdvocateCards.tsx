@@ -21,16 +21,16 @@ function AdvocateCard({
 
   return (
     <div className="rounded-xl border border-border bg-surface shadow-card overflow-hidden">
-      <div className="px-4 py-3 border-b border-border flex items-center gap-2">
+      <div className="px-5 py-4 border-b border-border flex items-center gap-2 bg-slate-50/50">
         <Icon className="w-4 h-4" style={{ color: accent }} />
-        <span className="text-[13px] font-semibold text-text-primary">{title}</span>
+        <span className="text-[14px] font-semibold text-text-primary">{title}</span>
       </div>
-      <div className="px-4 py-3">
-        <p className="text-[13px] text-text-secondary leading-relaxed">{open ? text : preview}</p>
+      <div className="p-5">
+        <p className="text-[14px] text-text-secondary leading-relaxed">{open ? text : preview}</p>
         {text.length > 280 && (
           <Collapsible open={open} onOpenChange={setOpen}>
-            <CollapsibleTrigger className="mt-2 text-teal hover:text-teal-dark">
-              <span className="flex items-center gap-1">
+            <CollapsibleTrigger className="mt-3 text-sm font-medium text-teal hover:text-teal-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal/50 rounded-sm">
+              <span className="flex items-center gap-1.5">
                 {open ? (
                   <>
                     <ChevronUp className="w-3.5 h-3.5" />

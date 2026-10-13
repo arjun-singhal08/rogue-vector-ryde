@@ -30,7 +30,7 @@ export function SidebarNav({
               <button
                 onClick={() => onSelect(c.id)}
                 className={cn(
-                  "w-full text-left px-3 py-2.5 rounded-md text-[13px] leading-snug transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-teal/50",
+                  "w-full text-left px-3 py-2.5 rounded-md text-[13px] leading-snug transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal active:scale-[0.98]",
                   active
                     ? "bg-navy-light text-white ring-1 ring-teal/40"
                     : "text-slate-300 hover:bg-navy-light hover:text-white"

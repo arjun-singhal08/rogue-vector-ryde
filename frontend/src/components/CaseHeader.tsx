@@ -47,12 +47,12 @@ export default function CaseHeader({ dispute, onReview, onRetry, isRunning, hasF
             onClick={hasFailed && onRetry ? onRetry : onReview}
             disabled={isRunning || !isReady}
             className={cn(
-              "inline-flex items-center gap-2 px-4 py-2.5 rounded-md text-sm font-medium btn-glow btn-sheen btn-press focus:outline-none focus:ring-2 focus:ring-teal/40",
+              "inline-flex items-center gap-2 px-4 py-2.5 rounded-md text-sm font-medium btn-glow btn-sheen btn-press focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-teal/60 transition-colors",
               isRunning || !isReady
                 ? "bg-slate-200 text-slate-500 cursor-not-allowed"
                 : hasFailed
-                  ? "bg-amber text-white hover:bg-amber-dark"
-                  : "bg-teal text-white hover:bg-teal-dark"
+                  ? "bg-amber text-white hover:bg-amber-dark shadow-sm"
+                  : "bg-teal text-white hover:bg-teal-dark shadow-sm"
             )}
           >
             {isRunning ? (

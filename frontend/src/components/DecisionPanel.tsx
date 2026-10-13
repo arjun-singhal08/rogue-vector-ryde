@@ -63,7 +63,7 @@ export default function DecisionPanel({ result }: DecisionPanelProps) {
           <Scale className="w-5 h-5 text-text-muted" />
           <h3 className="text-[15px] font-semibold text-text-primary">Decision</h3>
         </div>
-        <p className="text-[13px] text-text-secondary leading-relaxed">
+        <p className="text-[14px] text-text-secondary leading-relaxed">
           No review has been run for this case. Select <strong>Review case</strong> to start an agent workflow.
         </p>
         <div className="mt-3 text-[12px] text-text-muted">
@@ -106,7 +106,7 @@ export default function DecisionPanel({ result }: DecisionPanelProps) {
           <AlertTriangle className="w-5 h-5 text-red-600" />
           <h3 className="text-[15px] font-semibold text-red-700">Review failed</h3>
         </div>
-        <p className="text-[13px] text-red-700">{result.error || "An unexpected error occurred."}</p>
+        <p className="text-[14px] text-red-700">{result.error || "An unexpected error occurred."}</p>
       </div>
     );
   }
@@ -147,18 +147,20 @@ export default function DecisionPanel({ result }: DecisionPanelProps) {
 
         <div
           className={cn(
-            "inline-flex items-center gap-2 rounded-lg border px-3 py-2 mb-4",
+            "inline-flex items-center gap-2 rounded-lg border px-4 py-3 mb-5 shadow-sm",
             toneStyles[tone]
           )}
         >
-          <CheckCircle2 className="w-4 h-4" />
-          <span className="text-[18px] font-bold">{decisionLabel(result.decision)}</span>
+          <CheckCircle2 className="w-5 h-5" />
+          <span className="text-[18px] font-bold tracking-tight">{decisionLabel(result.decision)}</span>
         </div>
 
         {result.explanation && (
-          <p className="text-[13px] text-text-secondary leading-relaxed mb-4">
-            {result.explanation}
-          </p>
+          <div className="bg-slate-50 border border-border p-4 rounded-lg mb-5">
+            <p className="text-[14px] text-text-secondary leading-relaxed">
+              {result.explanation}
+            </p>
+          </div>
         )}
 
         <div className="flex flex-wrap items-center gap-3">
