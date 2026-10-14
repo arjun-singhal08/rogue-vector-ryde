@@ -262,12 +262,11 @@ export default function DecisionPanel({ result }: DecisionPanelProps) {
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 text-teal-dark" />
                 <span className="text-[13px] font-medium text-teal-dark">
-                  Ready for automated resolution
+                  Recommendation only
                 </span>
               </div>
               <p className="text-[12px] text-text-secondary mt-1">
-                This recommendation has sufficient confidence for automated
-                resolution. Review the reasoning above before finalizing.
+                This AI-generated recommendation has sufficient confidence, but does not automatically execute decisions. Review the reasoning before taking manual action.
               </p>
             </div>
           )}
