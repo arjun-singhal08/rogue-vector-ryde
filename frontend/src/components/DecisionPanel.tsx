@@ -156,6 +156,7 @@ export default function DecisionPanel({ result }: DecisionPanelProps) {
   const isExplicitEscalation =
     result.decision === "ESCALATE" ||
     result.decision === "ESCALATE FOR HUMAN REVIEW";
+  const isSafeguardEscalation = result.explanation?.startsWith("Safeguard activated:");
 
   const toneStyles = {
     positive: "bg-teal-light text-teal-dark border-teal/20",
@@ -180,7 +181,9 @@ export default function DecisionPanel({ result }: DecisionPanelProps) {
             </span>
           </div>
           <p className="text-[12px] text-text-secondary mt-1">
-            {isExplicitEscalation
+            {isSafeguardEscalation
+              ? "A deterministic safeguard was triggered due to missing evidence or policy."
+              : isExplicitEscalation
               ? "The judge explicitly recommended escalation for human review."
               : "The model-reported confidence is below the automated-resolution threshold."}
           </p>
@@ -252,7 +255,9 @@ export default function DecisionPanel({ result }: DecisionPanelProps) {
                 </span>
               </div>
               <p className="text-[12px] text-text-secondary mt-1">
-                {isExplicitEscalation
+                {isSafeguardEscalation
+                  ? "A deterministic safeguard has flagged this case for human review because critical evidence or policy is missing."
+                  : isExplicitEscalation
                   ? "The judge explicitly recommended escalation for human review rather than finalizing automatically."
                   : "The model-reported confidence is below the automated-resolution threshold. A human reviewer should verify this recommendation before acting."}
               </p>

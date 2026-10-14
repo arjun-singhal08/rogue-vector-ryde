@@ -381,42 +381,48 @@ class TestJudgeValidation(unittest.TestCase):
         })
         self.assertEqual(result["decision"], "[ERROR]")
 
-    def test_safeguard_cleaning_fee_missing_policy_pre_ride(self):
+    def test_safeguard_cleaning_fee_real_case_3(self):
+        import data.sample_disputes
+        case3 = data.sample_disputes.DISPUTES[2].copy()
+        case3["evidence"] = case3["evidence"].copy()
+        # Include an irrelevant policy key to ensure it isn't matched
+        case3["evidence"]["cancellation_policy"] = "Irrelevant policy text"
+        
+        exact_explanation = "Recorded facts show the driver submitted a photo at 19:29 showing a dark spill on the rear seat and the cleaning fee was applied at 19:36 (evidence[\"driver_submitted_photo\"], evidence[\"cleaning_fee_charge_event\"], evidence[\"app_events\"]). The rider’s claim of no drink and pre‑existing stain is unsupported; there is no pre‑ride photo and no other evidence proving the stain was present before the trip (ambiguity_notes). Policy text on cleaning fees is absent, so no rule can override the driver’s report. The system automatically applied the fee based on the driver’s submission. Thus, the evidence supports the driver’s claim, and the rider’s dispute is denied."
+
         result = validate_judge_output(
             {
                 "decision": "REJECTED",
-                "confidence": "85%",
-                "explanation": "No reason to refund.",
+                "confidence": "70%",
+                "explanation": exact_explanation,
             },
-            dispute_data={
-                "evidence": {
-                    "dispute_ticket": {"dispute_type": "property_damage_cleaning_fee"},
-                    "driver_photos": [{"description": "Spill on seat"}],
-                }
-            }
+            dispute_data=case3
         )
         self.assertEqual(result["decision"], "ESCALATE FOR HUMAN REVIEW")
         self.assertEqual(result["escalate"], True)
-        self.assertIn("Safeguard activated", result["explanation"])
+        self.assertEqual(
+            result["explanation"],
+            "Safeguard activated: The evidence lacks an applicable cleaning-fee policy and a pre-ride photo establishing the vehicle's condition. A disputed fee cannot be upheld automatically under these conditions. This case has been flagged for human review."
+        )
 
     def test_safeguard_cleaning_fee_has_policy(self):
+        import data.sample_disputes
+        case3_with_policy = data.sample_disputes.DISPUTES[2].copy()
+        case3_with_policy["evidence"] = case3_with_policy["evidence"].copy()
+        case3_with_policy["evidence"]["cleaning_fee_policy"] = "Fee is applicable"
+        
         result = validate_judge_output(
             {
                 "decision": "REJECTED",
                 "confidence": "85%",
                 "explanation": "Charge stands based on policy.",
             },
-            dispute_data={
-                "evidence": {
-                    "dispute_ticket": {"dispute_type": "property_damage_cleaning_fee"},
-                    "driver_photos": [{"description": "Spill on seat"}],
-                    "cleaning_fee_policy": "Fee is applicable",
-                }
-            }
+            dispute_data=case3_with_policy
         )
         self.assertEqual(result["decision"], "REJECTED")
         self.assertEqual(result["escalate"], False)
         self.assertNotIn("Safeguard activated", result["explanation"])
+
 
 
 class TestGroqClientBehaviour(unittest.TestCase):

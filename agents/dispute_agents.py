@@ -479,19 +479,16 @@ def validate_judge_output(raw: object, dispute_data: dict = None) -> dict:
         evidence = dispute_data.get("evidence", {})
         ticket = evidence.get("dispute_ticket", {})
         if ticket.get("dispute_type") == "property_damage_cleaning_fee" and decision == "REJECTED":
-            has_policy = any("policy" in k.lower() for k in evidence.keys())
-            has_pre_ride = any("before" in k.lower() or "pre_ride" in k.lower() for k in evidence.keys())
+            policy = evidence.get("cleaning_fee_policy")
+            has_policy = bool(policy and isinstance(policy, str) and policy.strip())
+            
+            has_pre_ride = "pre_ride_photo" in evidence or "before_ride_photo" in evidence
             
             if not has_policy and not has_pre_ride:
                 decision = "ESCALATE FOR HUMAN REVIEW"
                 escalate = True
-                
-                # Replace the original escalation notice if any, to avoid falsely saying the judge requested it
-                if "\n\n[ESCALATION NOTICE]" in explanation:
-                    explanation = explanation.split("\n\n[ESCALATION NOTICE]")[0]
-                    
-                explanation += (
-                    "\n\n[ESCALATION NOTICE] Safeguard activated: The evidence lacks an applicable cleaning-fee policy "
+                explanation = (
+                    "Safeguard activated: The evidence lacks an applicable cleaning-fee policy "
                     "and a pre-ride photo establishing the vehicle's condition. A disputed fee cannot be upheld "
                     "automatically under these conditions. This case has been flagged for human review."
                 )
