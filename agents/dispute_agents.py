@@ -410,7 +410,7 @@ def _error_ruling(msg: str) -> dict:
     }
 
 
-def validate_judge_output(raw: object) -> dict:
+def validate_judge_output(raw: object, dispute_data: dict = None) -> dict:
     """
     Validate and sanitise a judge model's output.
 
@@ -473,6 +473,28 @@ def validate_judge_output(raw: object) -> dict:
             "for automated resolution. This case is being flagged for human review "
             "rather than finalized automatically."
         )
+
+    # --- safeguard for specific disputes ---
+    if dispute_data is not None:
+        evidence = dispute_data.get("evidence", {})
+        ticket = evidence.get("dispute_ticket", {})
+        if ticket.get("dispute_type") == "property_damage_cleaning_fee" and decision == "REJECTED":
+            has_policy = any("policy" in k.lower() for k in evidence.keys())
+            has_pre_ride = any("before" in k.lower() or "pre_ride" in k.lower() for k in evidence.keys())
+            
+            if not has_policy and not has_pre_ride:
+                decision = "ESCALATE FOR HUMAN REVIEW"
+                escalate = True
+                
+                # Replace the original escalation notice if any, to avoid falsely saying the judge requested it
+                if "\n\n[ESCALATION NOTICE]" in explanation:
+                    explanation = explanation.split("\n\n[ESCALATION NOTICE]")[0]
+                    
+                explanation += (
+                    "\n\n[ESCALATION NOTICE] Safeguard activated: The evidence lacks an applicable cleaning-fee policy "
+                    "and a pre-ride photo establishing the vehicle's condition. A disputed fee cannot be upheld "
+                    "automatically under these conditions. This case has been flagged for human review."
+                )
 
     return {
         "decision": decision,
@@ -621,4 +643,4 @@ IMPORTANT — Respond in strict JSON format with exactly these keys and no extra
             f"Could not parse judge response as JSON: {exc}\n\nRaw response:\n{response_text}"
         )
 
-    return validate_judge_output(ruling)
+    return validate_judge_output(ruling, dispute_data)

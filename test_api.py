@@ -381,6 +381,43 @@ class TestJudgeValidation(unittest.TestCase):
         })
         self.assertEqual(result["decision"], "[ERROR]")
 
+    def test_safeguard_cleaning_fee_missing_policy_pre_ride(self):
+        result = validate_judge_output(
+            {
+                "decision": "REJECTED",
+                "confidence": "85%",
+                "explanation": "No reason to refund.",
+            },
+            dispute_data={
+                "evidence": {
+                    "dispute_ticket": {"dispute_type": "property_damage_cleaning_fee"},
+                    "driver_photos": [{"description": "Spill on seat"}],
+                }
+            }
+        )
+        self.assertEqual(result["decision"], "ESCALATE FOR HUMAN REVIEW")
+        self.assertEqual(result["escalate"], True)
+        self.assertIn("Safeguard activated", result["explanation"])
+
+    def test_safeguard_cleaning_fee_has_policy(self):
+        result = validate_judge_output(
+            {
+                "decision": "REJECTED",
+                "confidence": "85%",
+                "explanation": "Charge stands based on policy.",
+            },
+            dispute_data={
+                "evidence": {
+                    "dispute_ticket": {"dispute_type": "property_damage_cleaning_fee"},
+                    "driver_photos": [{"description": "Spill on seat"}],
+                    "cleaning_fee_policy": "Fee is applicable",
+                }
+            }
+        )
+        self.assertEqual(result["decision"], "REJECTED")
+        self.assertEqual(result["escalate"], False)
+        self.assertNotIn("Safeguard activated", result["explanation"])
+
 
 class TestGroqClientBehaviour(unittest.TestCase):
     def test_call_groq_no_retry_on_missing_key(self):
